@@ -493,7 +493,21 @@ updateCandidates ( model, cmd ) =
                         String.contains (String.toLower document.name) (String.toLower model.text)
                             && not (List.member document.category [ "category-page", "class-feature" ])
                             && not (document.category == "rules"
-                                && List.member document.name [ "Example", "Level", "Spell", "Spells", "Weapons" ]
+                                && List.member
+                                    document.name
+                                    [ "Attack"
+                                    , "Bulk"
+                                    , "Effect"
+                                    , "Effects"
+                                    , "Example"
+                                    , "Level"
+                                    , "Skill"
+                                    , "Speed"
+                                    , "Spell"
+                                    , "Spells"
+                                    , "Trait"
+                                    , "Weapons"
+                                    ]
                                 )
                     )
                 |> List.concatMap
@@ -1035,12 +1049,16 @@ viewManual model =
                         )
                     |> List.sortWith
                         (\a b ->
-                            if String.toLower a.name == String.toLower model.manualSearch then
-                                if a.name == b.name then
-                                    compare a.id b.id
+                            if String.toLower a.name == String.toLower model.manualSearch
+                                && String.toLower b.name == String.toLower model.manualSearch
+                            then
+                                compare a.id b.id
 
-                                else
-                                    LT
+                            else if String.toLower a.name == String.toLower model.manualSearch then
+                                LT
+
+                            else if String.toLower b.name == String.toLower model.manualSearch then
+                                GT
 
                             else
                                 compare a.id b.id
