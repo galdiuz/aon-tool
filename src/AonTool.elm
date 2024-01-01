@@ -223,8 +223,10 @@ update msg model =
                         |> List.filter ((/=) "")
                         |> List.Extra.groupWhile
                             (\a b ->
-                                String.length a > median - 10
+                                not (String.endsWith "." a)
+                                    || String.length a > median - 10
                             )
+                        |> Debug.log "groups"
                         |> List.map
                             (\( first, rest ) ->
                                 first ++ " " ++ String.join " " rest
@@ -497,15 +499,27 @@ updateCandidates ( model, cmd ) =
                                     document.name
                                     [ "Attack"
                                     , "Bulk"
+                                    , "Checks"
+                                    , "Critical Success"
+                                    , "Damage"
                                     , "Effect"
                                     , "Effects"
                                     , "Example"
+                                    , "Feat"
+                                    , "Hands"
+                                    , "Hit Points"
                                     , "Level"
+                                    , "Round"
+                                    , "Saving Throw"
+                                    , "Senses"
+                                    , "Size"
                                     , "Skill"
+                                    , "Skills"
                                     , "Speed"
                                     , "Spell"
                                     , "Spells"
                                     , "Trait"
+                                    , "Turn"
                                     , "Weapons"
                                     ]
                                 )
@@ -546,7 +560,7 @@ updateCandidates ( model, cmd ) =
     in
     ( { model
         | candidates = candidates
-        , currentCandidate = List.head candidates
+        , currentCandidate = Nothing
       }
     , cmd
     )
@@ -952,7 +966,7 @@ viewCandidate model candidate =
                         (candidate.index + String.length candidate.document.name + 10)
                         model.text
                     )
-                , if candidate.index + 10 >= String.length model.text then
+                , if candidate.index + String.length candidate.document.name + 10 >= String.length model.text then
                     Html.text ""
 
                   else
