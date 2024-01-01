@@ -18,6 +18,9 @@ import String.Extra
 import Task
 
 
+port clipboard_get : () -> Cmd msg
+port clipboard_receive : (String -> msg) -> Sub msg
+port clipboard_set : String -> Cmd msg
 port localStorage_set : Encode.Value -> Cmd msg
 port selectionChanged : (Decode.Value -> msg) -> Sub msg
 
@@ -38,10 +41,14 @@ type Msg
     = AddBrPressed
     | ApplyCandidatePressed Candidate
     | CandidateSelected Candidate
+    | CopyToClipboardPressed
+    | CopyFirstSentenceToClipboardPressed
     | DebouncePassed Int
     | FixNewlinesPressed
+    | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
     | ManualSearchChanged String
+    | PasteFromClipboardPressed
     | RefreshDataPressed
     | SelectionChanged Decode.Value
     | TextChanged String
@@ -140,7 +147,9 @@ init flagsValue =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ selectionChanged SelectionChanged ]
+        [ clipboard_receive GotClipboardContents
+        , selectionChanged SelectionChanged
+        ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -169,6 +178,20 @@ update msg model =
             , Cmd.none
             )
 
+        CopyToClipboardPressed ->
+            ( model
+            , clipboard_set model.text
+            )
+
+        CopyFirstSentenceToClipboardPressed ->
+            ( model
+            , clipboard_set
+                (model.text
+                    |> String.Extra.leftOf "."
+                    |> \s -> s ++ "."
+                )
+            )
+
         DebouncePassed debounce ->
             if model.debounce == debounce then
                 ( model
@@ -183,8 +206,9 @@ update msg model =
             let
                 lines : List String
                 lines =
-                    String.split "\n" model.text
-                        |> Debug.log "lines"
+                    model.text
+                        |> String.replace "\r" ""
+                        |> String.split "\n"
 
                 median : Int
                 median =
@@ -192,11 +216,11 @@ update msg model =
                         |> List.map String.length
                         |> List.Extra.getAt (List.length lines // 2)
                         |> Maybe.withDefault 0
-                        |> Debug.log "median"
 
                 fixed : String
                 fixed =
                     lines
+                        |> List.filter ((/=) "")
                         |> List.Extra.groupWhile
                             (\a b ->
                                 String.length a > median - 10
@@ -208,6 +232,12 @@ update msg model =
                         |> String.join "<br /><br />"
             in
             ( { model | text = fixed }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        GotClipboardContents value ->
+            ( { model | text = value }
             , Cmd.none
             )
                 |> updateCandidates
@@ -238,6 +268,11 @@ update msg model =
 
                 Err _ ->
                     ( model, Cmd.none )
+
+        PasteFromClipboardPressed ->
+            ( model
+            , clipboard_get ()
+            )
 
         ManualSearchChanged value ->
             ( { model
@@ -456,8 +491,10 @@ updateCandidates ( model, cmd ) =
                 |> List.filter
                     (\document ->
                         String.contains (String.toLower document.name) (String.toLower model.text)
-                            && (not <| List.member document.name [ "Example" ])
-                            && document.category /= "category-page"
+                            && not (List.member document.category [ "category-page", "class-feature" ])
+                            && not (document.category == "rules"
+                                && List.member document.name [ "Example", "Level", "Spell", "Spells", "Weapons" ]
+                                )
                     )
                 |> List.concatMap
                     (\document ->
@@ -513,11 +550,14 @@ regexFromString string =
 
 applyCandidate : Candidate -> String -> String
 applyCandidate candidate text =
-    Regex.replaceAtMost
-        1
+    Regex.replace
         (regexFromString candidate.document.name)
         (\match ->
-            addLinkTag candidate.document match.match
+            if match.index == candidate.index then
+                addLinkTag candidate.document match.match
+
+            else
+                match.match
         )
         text
 
@@ -703,7 +743,26 @@ view model =
             [ HA.class "row"
             , HA.class "gap-small"
             ]
-            [ Html.button
+            [ Html.text "Clipboard"
+            , Html.button
+                [ HE.onClick PasteFromClipboardPressed
+                ]
+                [ Html.text "Paste" ]
+            , Html.button
+                [ HE.onClick CopyToClipboardPressed
+                ]
+                [ Html.text "Copy" ]
+            , Html.button
+                [ HE.onClick CopyFirstSentenceToClipboardPressed
+                ]
+                [ Html.text "Copy first sentence" ]
+            ]
+        , Html.div
+            [ HA.class "row"
+            , HA.class "gap-small"
+            ]
+            [ Html.text "Utility"
+            , Html.button
                 [ HE.onClick FixNewlinesPressed
                 ]
                 [ Html.text "Fix newlines" ]

@@ -16,6 +16,16 @@
             }
         });
 
+        app.ports.clipboard_set.subscribe(value => {
+            navigator.clipboard.writeText(value);
+        });
+
+        app.ports.clipboard_get.subscribe(_ => {
+            navigator.clipboard.readText().then(value => {
+                app.ports.clipboard_receive.send(value);
+            });
+        });
+
         app.ports.localStorage_set.subscribe(data => {
             localStorage.setItem(data.key, data.value);
         });
