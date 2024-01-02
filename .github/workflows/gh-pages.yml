@@ -26,10 +26,10 @@ jobs:
       - name: Move files
         run: |
           mkdir build
-          mv index.html build/
+          sed "s/app.js/app-${GITHUB_SHA}.js/g" index.html > build/index.html
 
       - name: Build
-        run: elm make src/AonTool.elm --output build/app.js
+        run: elm make src/AonTool.elm --output build/app-${GITHUB_SHA}.js
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
