@@ -52,6 +52,7 @@ type Msg
     | RefreshDataPressed
     | SelectionChanged Decode.Value
     | TextChanged String
+    | WrapWithPressed String String
 
 
 type alias Flags =
@@ -318,6 +319,17 @@ update msg model =
                 |> Task.perform (\_ -> DebouncePassed (model.debounce + 1))
             )
 
+        WrapWithPressed start end ->
+            ( { model
+                | text =
+                    model.text
+                        |> String.Extra.insertAt end model.selection.end
+                        |> String.Extra.insertAt start model.selection.start
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
 
 flagsDecoder : Decode.Decoder Flags
 flagsDecoder =
@@ -494,23 +506,27 @@ updateCandidates ( model, cmd ) =
                     (\document ->
                         String.contains (String.toLower document.name) (String.toLower model.text)
                             && not (List.member document.category [ "category-page", "class-feature" ])
+                            && not (document.category == "creature" && document.name == "I")
                             && not (document.category == "rules"
                                 && List.member
                                     document.name
                                     [ "Attack"
                                     , "Bulk"
                                     , "Checks"
+                                    , "Critical Failure"
                                     , "Critical Success"
                                     , "Damage"
                                     , "Effect"
                                     , "Effects"
                                     , "Example"
                                     , "Feat"
+                                    , "Group"
                                     , "Hands"
                                     , "Hit Points"
                                     , "Level"
                                     , "Round"
                                     , "Saving Throw"
+                                    , "Saving Throws"
                                     , "Senses"
                                     , "Size"
                                     , "Skill"
@@ -770,6 +786,7 @@ view model =
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
+            , HA.class "wrap"
             ]
             [ Html.text "Clipboard"
             , Html.button
@@ -788,6 +805,7 @@ view model =
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
+            , HA.class "wrap"
             ]
             [ Html.text "Utility"
             , Html.button
@@ -798,6 +816,22 @@ view model =
                 [ HE.onClick AddBrPressed
                 ]
                 [ Html.text "Add <br />" ]
+            , Html.button
+                [ HE.onClick (WrapWithPressed "<b>" "</b>")
+                ]
+                [ Html.text "Wrap with <b>" ]
+            , Html.button
+                [ HE.onClick (WrapWithPressed "<i>" "</i>")
+                ]
+                [ Html.text "Wrap with <i>" ]
+            , Html.button
+                [ HE.onClick (WrapWithPressed "<u>" "</u>")
+                ]
+                [ Html.text "Wrap with <u>" ]
+            , Html.button
+                [ HE.onClick (WrapWithPressed "<h2 class=\"title\">" "</h2>")
+                ]
+                [ Html.text "Wrap with <h2 class=\"title\">" ]
             ]
         , Html.div
             [ HA.class "row"
