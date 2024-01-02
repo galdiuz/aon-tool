@@ -41,6 +41,7 @@ type Msg
     = AddBrPressed
     | ApplyCandidatePressed Candidate
     | CandidateSelected Candidate
+    | ConvertToListPressed
     | CopyToClipboardPressed
     | CopyFirstSentenceToClipboardPressed
     | DebouncePassed Int
@@ -176,6 +177,32 @@ update msg model =
 
         CandidateSelected candidate ->
             ( { model | currentCandidate = Just candidate }
+            , Cmd.none
+            )
+
+        ConvertToListPressed ->
+            ( { model
+                | text =
+                    String.Extra.replaceSlice
+                        (model.selection.text
+                            |> String.replace "\r" ""
+                            |> String.split "\n"
+                            |> List.map
+                                (\s ->
+                                    if String.startsWith "-" s || String.startsWith "*" s then
+                                        String.dropLeft 1 s
+                                            |> String.trim
+
+                                    else
+                                        s
+                                )
+                            |> String.join "</li><li>"
+                            |> \s -> "<ul><li>" ++ s ++ "</li></ul>"
+                        )
+                        model.selection.start
+                        model.selection.end
+                        model.text
+              }
             , Cmd.none
             )
 
@@ -836,6 +863,10 @@ view model =
                 [ HE.onClick (WrapWithPressed "<h2 class=\"title\">" "</h2>")
                 ]
                 [ Html.text "Wrap with <h2 class=\"title\">" ]
+            , Html.button
+                [ HE.onClick ConvertToListPressed
+                ]
+                [ Html.text "Convert to <ul>" ]
             ]
         , Html.div
             [ HA.class "row"
