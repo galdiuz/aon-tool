@@ -634,7 +634,11 @@ isCandidateInATag candidate text =
 
 addLinkTag : Document -> String -> String
 addLinkTag document string =
-    getDocumentLink document ++ string ++ "<%END>"
+    if document.category == "spell" then
+        getDocumentLink document ++ "<i>" ++ string ++ "</i><%END>"
+
+    else
+        getDocumentLink document ++ string ++ "<%END>"
 
 
 getDocumentLink : Document -> String
