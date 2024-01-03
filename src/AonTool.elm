@@ -45,6 +45,7 @@ type Msg
     | CopyToClipboardPressed
     | CopyFirstSentenceToClipboardPressed
     | DebouncePassed Int
+    | ElasticUrlChanged String
     | FixNewlinesPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
@@ -229,6 +230,11 @@ update msg model =
 
             else
                 ( model, Cmd.none )
+
+        ElasticUrlChanged value ->
+            ( { model | elasticUrl = value }
+            , Cmd.none
+            )
 
         FixNewlinesPressed ->
             let
@@ -430,10 +436,8 @@ buildDataBody model searchAfter =
                           , Encode.list Encode.object
                                 [ [ ( "query_string"
                                   , Encode.object
-                                        -- [ ( "query", Encode.string "type: (action OR feat OR spell OR trait)" )
-                                        [ ( "query", Encode.string "*" )
+                                        [ ( "query", Encode.string "!category:(category-page OR class-feature) !remaster_id:*" )
                                         , ( "default_operator", Encode.string "AND" )
-                                        -- , ( "fields", Encode.list Encode.string [ "name" ] )
                                         ]
                                   )
                                 ] ]
@@ -532,7 +536,6 @@ updateCandidates ( model, cmd ) =
                 |> List.filter
                     (\document ->
                         String.contains (String.toLower document.name) (String.toLower model.text)
-                            && not (List.member document.category [ "category-page", "class-feature" ])
                             && not (document.category == "creature" && document.name == "I")
                             && not (document.category == "rules"
                                 && List.member
@@ -817,6 +820,12 @@ view model =
             , Html.button
                 [ HE.onClick RefreshDataPressed ]
                 [ Html.text "Refresh" ]
+            , Html.input
+                [ HA.style "width" "300px"
+                , HA.value model.elasticUrl
+                , HE.onInput ElasticUrlChanged
+                ]
+                []
             ]
         , Html.div
             [ HA.class "row"
