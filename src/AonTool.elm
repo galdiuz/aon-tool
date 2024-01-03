@@ -570,7 +570,7 @@ updateCandidates ( model, cmd ) =
                 |> List.concatMap
                     (\document ->
                         Regex.find
-                            (regexFromString ("(?<![a-zA-Z%])" ++ document.name ++ "(?![a-zA-Z%])"))
+                            (regexFromString ("(?<![a-zA-Z%])" ++ escapeRegex document.name ++ "(?![a-zA-Z%])"))
                             model.text
                             |> List.map
                                 (\match ->
@@ -619,17 +619,36 @@ regexFromString string =
         |> Maybe.withDefault Regex.never
 
 
+escapeRegex : String -> String
+escapeRegex string =
+    string
+        |> String.replace "\\" "\\\\"
+        |> String.replace "^" "\\^"
+        |> String.replace "$" "\\$"
+        |> String.replace "." "\\."
+        |> String.replace "|" "\\|"
+        |> String.replace "?" "\\?"
+        |> String.replace "*" "\\*"
+        |> String.replace "+" "\\+"
+        |> String.replace "(" "\\("
+        |> String.replace ")" "\\)"
+        |> String.replace "[" "\\["
+        |> String.replace "]" "\\]"
+        |> String.replace "{" "\\{"
+        |> String.replace "}" "\\}"
+
+
 applyCandidate : Candidate -> String -> String
 applyCandidate candidate text =
-    Regex.replace
-        (regexFromString candidate.document.name)
-        (\match ->
-            if match.index == candidate.index then
-                addLinkTag candidate.document match.match
-
-            else
-                match.match
-        )
+    let
+        endIndex : Int
+        endIndex =
+            candidate.index + String.length candidate.document.name
+    in
+    String.Extra.replaceSlice
+        (addLinkTag candidate.document (String.slice candidate.index endIndex text))
+        candidate.index
+        endIndex
         text
 
 
