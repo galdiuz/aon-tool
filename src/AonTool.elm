@@ -186,7 +186,6 @@ update msg model =
                 | text =
                     String.Extra.replaceSlice
                         (model.selection.text
-                            |> String.replace "\r" ""
                             |> String.split "\n"
                             |> List.map
                                 (\s ->
@@ -240,9 +239,7 @@ update msg model =
             let
                 lines : List String
                 lines =
-                    model.text
-                        |> String.replace "\r" ""
-                        |> String.split "\n"
+                    String.split "\n" model.text
 
                 median : Int
                 median =
@@ -273,7 +270,11 @@ update msg model =
                 |> updateCandidates
 
         GotClipboardContents value ->
-            ( { model | text = value }
+            ( { model
+                | manualSearch = ""
+                , selection = emptySelection
+                , text = String.replace "\r" "" value
+              }
             , Cmd.none
             )
                 |> updateCandidates
@@ -346,7 +347,7 @@ update msg model =
             ( { model
                 | debounce = model.debounce + 1
                 , selection = emptySelection
-                , text = text
+                , text = String.replace "\r" "" text
               }
             , Process.sleep 250
                 |> Task.perform (\_ -> DebouncePassed (model.debounce + 1))
@@ -565,6 +566,7 @@ updateCandidates ( model, cmd ) =
                                     , "Spell"
                                     , "Spells"
                                     , "Trait"
+                                    , "Traits"
                                     , "Turn"
                                     , "Weapons"
                                     ]
