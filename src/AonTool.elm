@@ -26,7 +26,8 @@ port selectionChanged : (Decode.Value -> msg) -> Sub msg
 
 
 type alias Model =
-    { candidates : List Candidate
+    { aonUrl : String
+    , candidates : List Candidate
     , currentCandidate : Maybe Candidate
     , debounce : Int
     , documents : List Document
@@ -39,6 +40,7 @@ type alias Model =
 
 type Msg
     = AddBrPressed
+    | AonUrlChanged String
     | ApplyCandidatePressed Candidate
     | CandidateSelected Candidate
     | ConvertToListPressed
@@ -122,7 +124,8 @@ init flagsValue =
             Decode.decodeValue flagsDecoder flagsValue
                 |> Result.withDefault defaultFlags
     in
-    ( { candidates = []
+    ( { aonUrl = "https://2e.aonprd.com"
+      , candidates = []
       , currentCandidate = Nothing
       , debounce = 0
       , documents = []
@@ -166,6 +169,11 @@ update msg model =
             , Cmd.none
             )
                 |> updateCandidates
+
+        AonUrlChanged value ->
+            ( { model | aonUrl = value }
+            , Cmd.none
+            )
 
         ApplyCandidatePressed candidate ->
             ( { model
@@ -816,18 +824,45 @@ view model =
             ]
         , Html.div
             [ HA.class "row"
-            , HA.class "gap-small"
+            , HA.class "gap-medium"
+            , HA.class "wrap"
             ]
-            [ Html.text (String.fromInt (List.length model.documents) ++ " documents loaded")
-            , Html.button
-                [ HE.onClick RefreshDataPressed ]
-                [ Html.text "Refresh" ]
-            , Html.input
-                [ HA.style "width" "300px"
-                , HA.value model.elasticUrl
-                , HE.onInput ElasticUrlChanged
+            [ Html.div
+                [ HA.class "row"
+                , HA.class "gap-small"
+                , HA.class "align-center"
                 ]
-                []
+                [ Html.text (String.fromInt (List.length model.documents) ++ " documents loaded")
+                , Html.button
+                    [ HE.onClick RefreshDataPressed ]
+                    [ Html.text "Refresh" ]
+                ]
+            , Html.div
+                [ HA.class "row"
+                , HA.class "gap-tiny"
+                , HA.class "align-center"
+                ]
+                [ Html.text "Elasticsearch URL"
+                , Html.input
+                    [ HA.style "width" "300px"
+                    , HA.value model.elasticUrl
+                    , HE.onInput ElasticUrlChanged
+                    ]
+                    []
+                ]
+            , Html.div
+                [ HA.class "row"
+                , HA.class "gap-tiny"
+                , HA.class "align-center"
+                ]
+                [ Html.text "AoN URL"
+                , Html.input
+                    [ HA.style "width" "300px"
+                    , HA.value model.aonUrl
+                    , HE.onInput AonUrlChanged
+                    ]
+                    []
+                ]
             ]
         , Html.div
             [ HA.class "row"
@@ -847,6 +882,7 @@ view model =
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
+            , HA.class "align-center"
             , HA.class "wrap"
             ]
             [ Html.text "Clipboard"
@@ -866,6 +902,7 @@ view model =
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
+            , HA.class "align-center"
             , HA.class "wrap"
             ]
             [ Html.text "Utility"
@@ -1001,7 +1038,7 @@ viewCandidates model =
                         ]
                         [ Html.text candidate.document.name
                         , Html.a
-                            [ HA.href ("https://2e.aonprd.com" ++ candidate.document.url)
+                            [ HA.href (model.aonUrl ++ candidate.document.url)
                             , HA.target "_blank"
                             ]
                             [ Html.text candidate.document.url ]
@@ -1223,6 +1260,10 @@ css =
 
     .gap-tiny {
         gap: 4px;
+    }
+
+    .align-center {
+        align-items: center;
     }
 
     .wrap {
