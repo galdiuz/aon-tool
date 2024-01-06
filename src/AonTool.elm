@@ -194,16 +194,9 @@ update msg model =
                 | text =
                     String.Extra.replaceSlice
                         (model.selection.text
-                            |> String.split "\n"
-                            |> List.map
-                                (\s ->
-                                    if String.startsWith "-" s || String.startsWith "*" s then
-                                        String.dropLeft 1 s
-                                            |> String.trim
-
-                                    else
-                                        s
-                                )
+                            |> Regex.split (regexFromString "[\n\\*\\-•]")
+                            |> List.map String.trim
+                            |> List.filter (not << String.isEmpty)
                             |> String.join "</li><li>"
                             |> \s -> "<ul><li>" ++ s ++ "</li></ul>"
                         )
@@ -259,10 +252,12 @@ update msg model =
                 fixed : String
                 fixed =
                     lines
-                        |> List.filter ((/=) "")
+                        |> List.map String.trim
+                        |> List.filter (not << String.isEmpty)
                         |> List.Extra.groupWhile
                             (\a b ->
                                 not (String.endsWith "." a)
+                                    || not (String.startsWith "• " a)
                                     || String.length a > median - 10
                             )
                         |> Debug.log "groups"
@@ -271,6 +266,7 @@ update msg model =
                                 first ++ " " ++ String.join " " rest
                             )
                         |> String.join "<br /><br />"
+                        |> String.trim
             in
             ( { model | text = fixed }
             , Cmd.none
