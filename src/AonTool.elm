@@ -260,7 +260,6 @@ update msg model =
                                     || not (String.startsWith "• " a)
                                     || String.length a > median - 10
                             )
-                        |> Debug.log "groups"
                         |> List.map
                             (\( first, rest ) ->
                                 first ++ " " ++ String.join " " rest
