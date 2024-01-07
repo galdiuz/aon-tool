@@ -11,6 +11,10 @@ import Json.Decode as Decode
 import Json.Decode.Field as Field
 import Json.Encode as Encode
 import List.Extra
+import Markdown.Block
+import Markdown.Html
+import Markdown.Parser
+import Markdown.Renderer
 import Maybe.Extra
 import Process
 import Regex
@@ -795,6 +799,86 @@ getDocumentLinkCode document =
         _ -> ""
 
 
+linkCodeToUrl : String -> String
+linkCodeToUrl code =
+    case code of
+        "ACTIONS" -> "/Actions.aspx?ID="
+        "ANCESTRIES" -> "/Ancestries.aspx?ID="
+        "ANIMAL.COMPANIONS.ADVANCED" -> "/AnimalCompanions.aspx?Advanced=true&ID="
+        "ANIMAL.COMPANIONS.SPECIALIZED" -> "/AnimalCompanions.aspx?Specialized=true&ID="
+        "ANIMAL.COMPANIONS.UNIQUE" -> "/AnimalCompanions.aspx?Unique=true&ID="
+        "ARCHETYPES" -> "/Archetypes.aspx?ID="
+        "ARMOR" -> "/Armor.aspx?ID="
+        "ARMOR.GROUPS" -> "/ArmorGroups.aspx?ID="
+        "ARTICLES" -> "/Articles.aspx?ID="
+        "BACKGROUNDS" -> "/Backgrounds.aspx?ID="
+        "CAMPSITE.MEALS" -> "/CampMeals.aspx?ID="
+        "CLASS.ARCANE.SCHOOLS" -> "/ArcaneSchools.aspx?ID="
+        "CLASS.ARCANE.THESIS" -> "/ArcaneThesis.aspx?ID="
+        "CLASS.BLOODLINES" -> "/Bloodlines.aspx?ID="
+        "CLASS.CHAMPION.CAUSES" -> "/Causes.aspx?ID="
+        "CLASS.CONSCIOUS.MINDS" -> "/ConsciousMinds.aspx?ID="
+        "CLASS.DOCTRINES" -> "/Doctrines.aspx?ID="
+        "CLASS.DRUID.ORDERS" -> "/DruidicOrders.aspx?ID="
+        "CLASS.ELEMENTS" -> "/Elements.aspx?ID="
+        "CLASS.HUNTERS.EDGES" -> "/HuntersEdge.aspx?ID="
+        "CLASS.HYBRID.STUDIES" -> "/HybridStudies.aspx?ID="
+        "CLASS.IMPLEMENTS" -> "/Implements.aspx?ID="
+        "CLASS.INNOVATIONS" -> "/Innovations.aspx?ID="
+        "CLASS.INSTINCTS" -> "/Instincts.aspx?ID="
+        "CLASS.METHODOLOGIES" -> "/Methodologies.aspx?ID="
+        "CLASS.MUSES" -> "/Muses.aspx?ID="
+        "CLASS.MYSTERIES" -> "/Mysteries.aspx?ID="
+        "CLASS.RACKETS" -> "/Rackets.aspx?ID="
+        "CLASS.RESEARCH.FIELDS" -> "/ResearchFields.aspx?ID="
+        "CLASS.SUBCONSCIOUS.MINDS" -> "/SubconsciousMinds.aspx?ID="
+        "CLASS.SWASH.STYLES" -> "/Styles.aspx?ID="
+        "CLASS.TENETS" -> "/Tenets.aspx?ID="
+        "CLASS.WAYS" -> "/Ways.aspx?ID="
+        "CLASS.WITCH.LESSONS" -> "/Lessons.aspx?ID="
+        "CLASS.WITCH.PATRONS" -> "/Patrons.aspx?ID="
+        "CLASSES" -> "/Classes.aspx?ID="
+        "COMPANIONS" -> "/AnimalCompanions.aspx?ID="
+        "CONDITIONS" -> "/Conditions.aspx?ID="
+        "CURSES" -> "/Curses.aspx?ID="
+        "DEITIES" -> "/Deities.aspx?ID="
+        "DEITY.CATEGORIES" -> "/DeityCategories.aspx?ID="
+        "DISEASES" -> "/Diseases.aspx?ID="
+        "DOMAINS" -> "/Domains.aspx?ID="
+        "EIDOLONS" -> "/Eidolons.aspx?ID="
+        "EQUIPMENT" -> "/Equipment.aspx?ID="
+        "FAMILIAR.ABILITIES" -> "/Familiars.aspx?ID="
+        "FAMILIARS.SPECIFIC" -> "/Familiars.aspx?Specific=true&ID="
+        "FEATS" -> "/Feats.aspx?ID="
+        "FEATS.DEVIANT" -> "/DeviantFeats.aspx?ID="
+        "HAZARDS" -> "/Hazards.aspx?ID="
+        "HAZARDS.WEATHER" -> "/WeatherHazards.aspx?ID="
+        "HERITAGES" -> "/Heritages.aspx?ID="
+        "KINGDOM.EVENTS" -> "/KMEvents.aspx?ID="
+        "KINGDOM.STRUCTURES" -> "/KMStructures.aspx?ID="
+        "LANGUAGES" -> "/Languages.aspx?ID="
+        "MON.FAMILY" -> "/MonsterFamilies.aspx?ID="
+        "MONSTERS" -> "/Monsters.aspx?ID="
+        "PLANES" -> "/Planes.aspx?ID="
+        "RELIC.GIFTS" -> "/Relics.aspx?ID="
+        "RITUALS" -> "/Rituals.aspx?ID="
+        "RULES" -> "/Rules.aspx?ID="
+        "SHIELDS" -> "/Shields.aspx?ID="
+        "SIEGE.WEAPONS" -> "/SiegeWeapons.aspx?ID="
+        "SKILLS" -> "/Skills.aspx?ID="
+        "SKILLS.GENERAL" -> "/Skills.aspx?General=true&ID="
+        "SOURCES" -> "/Sources.aspx?ID="
+        "SPELLS" -> "/Spells.aspx?ID="
+        "TRADITIONS" -> "/Spells.aspx?Tradition="
+        "TRAITS" -> "/Traits.aspx?ID="
+        "UMR" -> "/MonsterAbilities.aspx?ID="
+        "VEHICLES" -> "/Vehicles.aspx?ID="
+        "WARFARE.TACTICS" -> "/KMWarTactics.aspx?ID="
+        "WEAPON.GROUPS" -> "/WeaponGroups.aspx?ID="
+        "WEAPONS" -> "/Weapons.aspx?ID="
+        _ -> ""
+
+
 selectionDecoder : Decode.Decoder Selection
 selectionDecoder =
     Field.require "text" Decode.string <| \text ->
@@ -940,74 +1024,283 @@ view model =
         ]
 
 
-viewPreview : Model -> Html msg
+viewPreview : Model -> Html Msg
 viewPreview model =
     Html.div
         [ HA.style "flex" "1"
         ]
         (case model.currentCandidate of
             Just candidate ->
-                if isCandidateInATag candidate model.text then
-                    [ viewTextWithBr
-                        (String.left
-                            candidate.index
-                            model.text
+                let
+                    endIndex : Int
+                    endIndex =
+                        candidate.index + String.length candidate.document.name
+                in
+                model.text
+                    |> String.Extra.replaceSlice
+                        ("<highlight>"
+                            ++ (String.slice candidate.index endIndex model.text)
+                            ++ "</highlight>"
                         )
-                    , Html.span
-                        [ HA.style "color" "#ff00ff" ]
-                        [ Html.text
-                            (model.text
-                                |> String.dropLeft (candidate.index)
-                                |> String.left (String.length candidate.document.name)
-                            )
-                        ]
-                    , viewTextWithBr
-                        (String.dropLeft
-                            (candidate.index + String.length candidate.document.name)
-                            model.text
-                        )
-                    ]
-
-                else
-                    [ viewTextWithBr
-                        (String.left
-                            candidate.index
-                            model.text
-                        )
-                    , Html.span
-                        [ HA.style "color" "#00ffff" ]
-                        [ Html.text (getDocumentLink candidate.document) ]
-                    , Html.span
-                        [ HA.style "color" "#ff00ff" ]
-                        [ viewTextWithBr
-                            (model.text
-                                |> String.dropLeft (candidate.index)
-                                |> String.left (String.length candidate.document.name)
-                            )
-                        ]
-                    , Html.span
-                        [ HA.style "color" "#00ffff" ]
-                        [ Html.text "<%END>" ]
-                    , viewTextWithBr
-                        (String.dropLeft
-                            (candidate.index + String.length candidate.document.name)
-                            model.text
-                        )
-                    ]
+                        candidate.index
+                        endIndex
+                    |> viewMarkdown model
 
             Nothing ->
-                [ viewTextWithBr model.text
+                viewMarkdown model model.text
+        )
+
+
+viewMarkdown : Model -> String -> List (Html Msg)
+viewMarkdown model text =
+    let
+        markdown : Result (List String) (List Markdown.Block.Block)
+        markdown =
+            text
+                |> Regex.replace
+                    (regexFromString "<%(.+?)%(.+?)%%>(.+?)<%END>")
+                    (\match ->
+                        let
+                            getSubmatch : Int -> String
+                            getSubmatch index =
+                                match.submatches
+                                    |> List.Extra.getAt index
+                                    |> Maybe.Extra.join
+                                    |> Maybe.withDefault ""
+                        in
+                        "<link code=\"" ++ getSubmatch 0 ++ "\" id=\"" ++ getSubmatch 1 ++ "\">" ++ getSubmatch 2 ++ "</link>"
+                    )
+                |> Markdown.Parser.parse
+                |> Result.map (List.map (Markdown.Block.walk fixMarkdownSpacing))
+                |> Result.mapError (List.map Markdown.Parser.deadEndToString)
+    in
+    case markdown of
+        Ok blocks ->
+            case Markdown.Renderer.render (markdownRenderer model) blocks of
+                Ok v ->
+                    List.concat v
+
+                Err err ->
+                    [ Html.div
+                        [ HA.style "color" "red" ]
+                        [ Html.text ("Error rendering markdown:") ]
+                    , Html.div
+                        [ HA.style "color" "red" ]
+                        [ Html.text err ]
+                    ]
+
+        Err errors ->
+            [ Html.div
+                [ HA.style "color" "red" ]
+                [ Html.text ("Error parsing markdown:") ]
+            , Html.div
+                [ HA.style "color" "red" ]
+                (List.map Html.text errors)
+            ]
+
+
+fixMarkdownSpacing : Markdown.Block.Block -> Markdown.Block.Block
+fixMarkdownSpacing block =
+    mapHtmlElementChildren
+        (List.foldl
+            (\child previous ->
+                case child of
+                    Markdown.Block.Paragraph inlines ->
+                        case List.Extra.last previous of
+                            Just (Markdown.Block.HtmlBlock _) ->
+                                List.append
+                                    previous
+                                    [ inlines
+                                        |> List.map addSpaces
+                                        |> Markdown.Block.Paragraph
+                                    ]
+
+                            _ ->
+                                List.append previous [ child ]
+
+                    _ ->
+                        List.append previous [ child ]
+            )
+            []
+        )
+        block
+
+
+mapHtmlElementChildren :
+    (List (Markdown.Block.Block) -> List (Markdown.Block.Block))
+    -> Markdown.Block.Block
+    -> Markdown.Block.Block
+mapHtmlElementChildren mapFun block =
+    case block of
+        Markdown.Block.HtmlBlock (Markdown.Block.HtmlElement name attrs children) ->
+            Markdown.Block.HtmlBlock
+                (Markdown.Block.HtmlElement
+                    name
+                    attrs
+                    (mapFun children)
+                )
+
+        Markdown.Block.Paragraph inlines ->
+            Markdown.Block.Paragraph
+                (List.map
+                    (\inline ->
+                        case inline of
+                            Markdown.Block.HtmlInline (Markdown.Block.HtmlElement name attrs children) ->
+                                Markdown.Block.HtmlInline
+                                    (Markdown.Block.HtmlElement
+                                        name
+                                        attrs
+                                        (List.map fixMarkdownSpacing children)
+                                    )
+
+                            _ ->
+                                inline
+                    )
+                    inlines
+                )
+
+        _ ->
+            block
+
+
+addSpaces : Markdown.Block.Inline -> Markdown.Block.Inline
+addSpaces inline =
+    case inline of
+        Markdown.Block.Text text ->
+            if Regex.contains (regexFromString "^[\\W].*") text then
+                text ++ " "
+                    |> Markdown.Block.Text
+
+            else
+                " " ++ text ++ " "
+                    |> Markdown.Block.Text
+
+        _ ->
+            inline
+
+
+markdownRenderer : Model -> Markdown.Renderer.Renderer (List (Html Msg))
+markdownRenderer model =
+    let
+        defaultRenderer : Markdown.Renderer.Renderer (Html msg)
+        defaultRenderer =
+            Markdown.Renderer.defaultHtmlRenderer
+    in
+    { blockQuote = List.concat >> defaultRenderer.blockQuote >> List.singleton
+    , codeBlock = defaultRenderer.codeBlock >> List.singleton
+    , codeSpan = defaultRenderer.codeSpan >> List.singleton
+    , emphasis = List.concat >> defaultRenderer.emphasis >> List.singleton
+    , hardLineBreak = defaultRenderer.hardLineBreak |> List.singleton
+    , heading =
+        \heading ->
+            [ defaultRenderer.heading
+                { level = heading.level
+                , rawText = heading.rawText
+                , children = List.concat heading.children
+                }
+            ]
+    , html = markdownHtmlRenderer model
+    , image = defaultRenderer.image >> List.singleton
+    , link =
+        \linkData ->
+            List.concat >> defaultRenderer.link linkData >> List.singleton
+    , orderedList = \startingIndex -> List.concat >> defaultRenderer.orderedList startingIndex >> List.singleton
+    , paragraph = List.concat >> defaultRenderer.paragraph >> List.singleton
+    , strikethrough = List.concat >> defaultRenderer.strikethrough >> List.singleton
+    , strong = List.concat >> defaultRenderer.strong >> List.singleton
+    , table = List.concat >> defaultRenderer.table >> List.singleton
+    , tableBody = List.concat >> defaultRenderer.tableBody >> List.singleton
+    , tableCell = \alignment -> List.concat >> defaultRenderer.tableCell alignment >> List.singleton
+    , tableHeader = List.concat >> defaultRenderer.tableHeader >> List.singleton
+    , tableHeaderCell = \alignment -> List.concat >> defaultRenderer.tableHeaderCell alignment >> List.singleton
+    , tableRow = List.concat >> defaultRenderer.tableRow >> List.singleton
+    , text = defaultRenderer.text >> List.singleton
+    , thematicBreak = defaultRenderer.thematicBreak |> List.singleton
+    , unorderedList =
+        List.map
+            (\item ->
+                case item of
+                    Markdown.Block.ListItem task children ->
+                        Markdown.Block.ListItem task (List.concat children)
+            )
+            >> defaultRenderer.unorderedList
+            >> List.singleton
+    }
+
+
+markdownHtmlRenderer : Model ->Markdown.Html.Renderer (List (List (Html Msg)) -> List (Html Msg))
+markdownHtmlRenderer model =
+    Markdown.Html.oneOf
+        [ Markdown.Html.tag "b"
+            (\children ->
+                [ Html.b
+                    []
+                    (List.concat children)
                 ]
-        )
-
-
-viewTextWithBr text =
-    Html.span
-        []
-        (String.split "<br />" text
-            |> List.map Html.text
-            |> List.intersperse (Html.br [] [])
-        )
+            )
+        , Markdown.Html.tag "br"
+            (\children ->
+                [ Html.br
+                    []
+                    []
+                ]
+            )
+        , Markdown.Html.tag "h2"
+            (\class children ->
+                [ Html.h2
+                    [ HA.class (Maybe.withDefault "" class) ]
+                    (List.concat children)
+                ]
+            )
+            |> Markdown.Html.withOptionalAttribute "class"
+        , Markdown.Html.tag "highlight"
+            (\children ->
+                [ Html.span
+                    [ HA.style "color" "#ff00ff" ]
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "i"
+            (\children ->
+                [ Html.i
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "li"
+            (\children ->
+                [ Html.li
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "link"
+            (\code id children ->
+                [ Html.a
+                    [ HA.href (model.aonUrl ++ linkCodeToUrl code ++ id)
+                    , HA.style "text-decoration" "underline"
+                    , HA.title ("<%" ++ code ++ "%" ++ id ++ "%%>")
+                    ]
+                    (List.concat children)
+                ]
+            )
+            |> Markdown.Html.withAttribute "code"
+            |> Markdown.Html.withAttribute "id"
+        , Markdown.Html.tag "u"
+            (\children ->
+                [ Html.u
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "ul"
+            (\children ->
+                [ Html.ul
+                    []
+                    (List.concat children)
+                ]
+            )
+        ]
 
 
 viewCandidates : Model -> Html Msg
@@ -1165,7 +1458,7 @@ viewManual model =
                             ]
                             [ Html.text document.name
                             , Html.a
-                                [ HA.href ("https://2e.aonprd.com" ++ document.url)
+                                [ HA.href (model.aonUrl ++ document.url)
                                 , HA.target "_blank"
                                 ]
                                 [ Html.text document.url ]
@@ -1227,6 +1520,14 @@ css =
         color: inherit;
     }
 
+    a p, b p, i p, u p, li p, span p {
+        display: inline;
+    }
+
+    p {
+        margin: 0;
+    }
+
     .row {
         display: flex;
         flex-direction: row;
@@ -1270,5 +1571,14 @@ css =
         border-radius: 2px;
         color: #cbc18f;
         padding: 2px 4px;
+    }
+
+    h2 {
+        margin: 8px 0;
+    }
+
+    h2.title {
+        background-color: #806e45;
+        color: #0f0f0f;
     }
     """
