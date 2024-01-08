@@ -261,7 +261,7 @@ update msg model =
                         |> List.Extra.groupWhile
                             (\a b ->
                                 not (String.endsWith "." a)
-                                    || not (String.startsWith "• " a)
+                                    || String.startsWith "• " b
                                     || String.length a > median - 10
                             )
                         |> List.map
