@@ -198,7 +198,7 @@ update msg model =
                 | text =
                     String.Extra.replaceSlice
                         (model.selection.text
-                            |> Regex.split (regexFromString "[\n\\*\\-•]")
+                            |> Regex.split (regexFromString "[\n•]|[\\*\\-] ")
                             |> List.map String.trim
                             |> List.filter (not << String.isEmpty)
                             |> String.join "</li><li>"
