@@ -1286,6 +1286,34 @@ markdownHtmlRenderer model =
             )
             |> Markdown.Html.withAttribute "code"
             |> Markdown.Html.withAttribute "id"
+        , Markdown.Html.tag "table"
+            (\children ->
+                [ Html.table
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "td"
+            (\children ->
+                [ Html.td
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "th"
+            (\children ->
+                [ Html.th
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "tr"
+            (\children ->
+                [ Html.tr
+                    []
+                    (List.concat children)
+                ]
+            )
         , Markdown.Html.tag "u"
             (\children ->
                 [ Html.u
