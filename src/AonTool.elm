@@ -1058,17 +1058,14 @@ viewMarkdown model text =
         markdown =
             text
                 |> Regex.replace
+                    (regexFromString "<%ACTION.TYPES#(.+?)%%>")
+                    (\match ->
+                        "<action id=\"" ++ getSubmatch 0 match ++ "\" />"
+                    )
+                |> Regex.replace
                     (regexFromString "<%(.+?)%(.+?)%%>(.+?)<%END>")
                     (\match ->
-                        let
-                            getSubmatch : Int -> String
-                            getSubmatch index =
-                                match.submatches
-                                    |> List.Extra.getAt index
-                                    |> Maybe.Extra.join
-                                    |> Maybe.withDefault ""
-                        in
-                        "<link code=\"" ++ getSubmatch 0 ++ "\" id=\"" ++ getSubmatch 1 ++ "\">" ++ getSubmatch 2 ++ "</link>"
+                        "<link code=\"" ++ getSubmatch 0 match ++ "\" id=\"" ++ getSubmatch 1 match ++ "\">" ++ getSubmatch 2 match ++ "</link>"
                     )
                 |> Markdown.Parser.parse
                 |> Result.map (List.map (Markdown.Block.walk fixMarkdownSpacing))
@@ -1097,6 +1094,14 @@ viewMarkdown model text =
                 [ HA.style "color" "red" ]
                 (List.map Html.text errors)
             ]
+
+
+getSubmatch : Int -> Regex.Match -> String
+getSubmatch index match =
+    match.submatches
+        |> List.Extra.getAt index
+        |> Maybe.Extra.join
+        |> Maybe.withDefault ""
 
 
 fixMarkdownSpacing : Markdown.Block.Block -> Markdown.Block.Block
@@ -1231,7 +1236,15 @@ markdownRenderer model =
 markdownHtmlRenderer : Model ->Markdown.Html.Renderer (List (List (Html Msg)) -> List (Html Msg))
 markdownHtmlRenderer model =
     Markdown.Html.oneOf
-        [ Markdown.Html.tag "b"
+        [ Markdown.Html.tag "action"
+            (\id _ ->
+                [ Html.span
+                    [ HA.class "icon-font" ]
+                    [ Html.text (actionIdToString id) ]
+                ]
+            )
+            |> Markdown.Html.withAttribute "id"
+        , Markdown.Html.tag "b"
             (\children ->
                 [ Html.b
                     []
@@ -1329,6 +1342,28 @@ markdownHtmlRenderer model =
                 ]
             )
         ]
+
+
+actionIdToString : String -> String
+actionIdToString id =
+    case id of
+        "2" ->
+            "[one-action]"
+
+        "3" ->
+            "[two-actions]"
+
+        "4" ->
+            "[three-actions]"
+
+        "5" ->
+            "[reaction]"
+
+        "6" ->
+            "[free-action]"
+
+        _ ->
+            "[action-" ++ id ++ "]"
 
 
 viewCandidates : Model -> Html Msg
@@ -1608,5 +1643,18 @@ css =
     h2.title {
         background-color: #806e45;
         color: #0f0f0f;
+    }
+
+    .icon-font {
+        font-family: "Pathfinder-Icons";
+        font-variant-caps: normal;
+        font-weight: normal;
+        vertical-align: text-bottom;
+    }
+
+    @font-face {
+        font-family: "Pathfinder-Icons";
+        src: url("Pathfinder-Icons.ttf");
+        font-display: swap;
     }
     """
