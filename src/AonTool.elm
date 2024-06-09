@@ -47,6 +47,7 @@ type Msg
     | AonUrlChanged String
     | ApplyCandidatePressed Candidate
     | CandidateSelected Candidate
+    | ConvertActionsPressed
     | ConvertToListPressed
     | CopyToClipboardPressed
     | CopyFirstSentenceToClipboardPressed
@@ -190,6 +191,19 @@ update msg model =
 
         CandidateSelected candidate ->
             ( { model | currentCandidate = Just candidate }
+            , Cmd.none
+            )
+
+        ConvertActionsPressed ->
+            ( { model
+                | text =
+                    model.text
+                        |> String.replace "[one-action]" "<%ACTION.TYPES#2%%>"
+                        |> String.replace "[two-actions]" "<%ACTION.TYPES#3%%>"
+                        |> String.replace "[three-actions]" "<%ACTION.TYPES#4%%>"
+                        |> String.replace "[reaction]" "<%ACTION.TYPES#5%%>"
+                        |> String.replace "[free-action]" "<%ACTION.TYPES#6%%>"
+              }
             , Cmd.none
             )
 
@@ -1020,6 +1034,10 @@ view model =
                 [ HE.onClick ConvertToListPressed
                 ]
                 [ Html.text "Convert to <ul>" ]
+            , Html.button
+                [ HE.onClick ConvertActionsPressed
+                ]
+                [ Html.text "Convert actions" ]
             ]
         , Html.div
             [ HA.class "row"
