@@ -665,8 +665,15 @@ applyCandidate candidate text =
 
 
 isCandidateInATag : Candidate -> String -> Bool
-isCandidateInATag candidate text =
+isCandidateInATag candidate rawText =
     let
+        text : String
+        text =
+            Regex.replace
+                (regexFromString "<%ACTION.TYPES#(.+?)%%>")
+                (\match -> "")
+                rawText
+
         openIndices : List Int
         openIndices =
             String.indices "%%>" text
