@@ -1028,6 +1028,8 @@ viewPreview : Model -> Html Msg
 viewPreview model =
     Html.div
         [ HA.style "flex" "1"
+        , HA.style "max-height" "250px"
+        , HA.style "overflow-y" "auto"
         ]
         (case model.currentCandidate of
             Just candidate ->
