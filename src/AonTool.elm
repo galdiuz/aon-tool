@@ -310,7 +310,7 @@ update msg model =
                     , Cmd.none
                     )
                         |> (if List.length searchResult.documents < dataSize then
-                                (\(m, cmd) ->
+                                (\( m, cmd ) ->
                                     ( m
                                     , saveToLocalStorage
                                         "data"
@@ -559,6 +559,11 @@ updateCandidates ( model, cmd ) =
                     (\document ->
                         String.contains (String.toLower document.name) (String.toLower model.text)
                             && not (document.category == "creature" && document.name == "I")
+                            && not (List.member
+                                document.id
+                                [ "action-1167" -- Strike
+                                ]
+                            )
                             && not (document.category == "rules"
                                 && List.member
                                     document.name
