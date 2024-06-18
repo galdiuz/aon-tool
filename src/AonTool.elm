@@ -562,6 +562,10 @@ updateCandidates ( model, cmd ) =
                             && not (List.member
                                 document.id
                                 [ "action-1167" -- Strike
+                                , "rules-33" -- Perception
+                                , "rules-90" -- Perception
+                                , "rules-2040" -- Perception
+                                , "rules-2882" -- Perception
                                 ]
                             )
                             && not (document.category == "rules"
