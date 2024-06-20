@@ -54,6 +54,7 @@ type Msg
     | DebouncePassed Int
     | ElasticUrlChanged String
     | FixNewlinesPressed
+    | FormatCritEffectsPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
     | ManualSearchChanged String
@@ -286,6 +287,30 @@ update msg model =
                         |> String.trim
             in
             ( { model | text = fixed }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        FormatCritEffectsPressed ->
+            ( { model
+                | text =
+                    Regex.replace
+                        (regexFromString "^.*?(Critical Success (.*?(?=Success)|$))?(Success (.*?((?=Failure)|$)))?(Failure (.*?((?=Critical Failure)|$)))?(Critical Failure (.*))?$")
+                        (\match ->
+                            [ getSubmatch 1 "NULL" match
+                            , getSubmatch 3 "NULL" match
+                            , getSubmatch 6 "NULL" match
+                            , getSubmatch 9 "NULL" match
+                            ]
+                                |> List.map String.trim
+                                |> String.join "\t"
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+              }
             , Cmd.none
             )
                 |> updateCandidates
@@ -558,14 +583,18 @@ updateCandidates ( model, cmd ) =
                 |> List.filter
                     (\document ->
                         String.contains (String.toLower document.name) (String.toLower model.text)
-                            && not (document.category == "creature" && document.name == "I")
                             && not (List.member
                                 document.id
                                 [ "action-1167" -- Strike
+                                , "creature-1969" -- I
                                 , "rules-33" -- Perception
                                 , "rules-90" -- Perception
                                 , "rules-2040" -- Perception
                                 , "rules-2882" -- Perception
+                                , "rules-2586" -- Difficult Terrain
+                                , "rules-2559" -- Cover
+                                , "rules-165" -- Movement
+                                , "rules-2271" -- Movement
                                 ]
                             )
                             && not (document.category == "rules"
@@ -1047,6 +1076,10 @@ view model =
                 [ HE.onClick ConvertActionsPressed
                 ]
                 [ Html.text "Convert actions" ]
+            , Html.button
+                [ HE.onClick FormatCritEffectsPressed
+                ]
+                [ Html.text "Format CritEffects" ]
             ]
         , Html.div
             [ HA.class "row"
@@ -1096,12 +1129,20 @@ viewMarkdown model text =
                 |> Regex.replace
                     (regexFromString "<%ACTION.TYPES#(.+?)%%>")
                     (\match ->
-                        "<action id=\"" ++ getSubmatch 0 match ++ "\" />"
+                        "<action id=\"" ++ getSubmatch 0 "" match ++ "\" />"
                     )
                 |> Regex.replace
                     (regexFromString "<%(.+?)%(.+?)%%>(.+?)<%END>")
                     (\match ->
-                        "<link code=\"" ++ getSubmatch 0 match ++ "\" id=\"" ++ getSubmatch 1 match ++ "\">" ++ getSubmatch 2 match ++ "</link>"
+                        [ "<link code=\""
+                        , getSubmatch 0 "" match
+                        , "\" id=\""
+                        , getSubmatch 1 "" match
+                        , "\">"
+                        , getSubmatch 2 "" match
+                        , "</link>"
+                        ]
+                            |> String.join ""
                     )
                 |> Markdown.Parser.parse
                 |> Result.map (List.map (Markdown.Block.walk fixMarkdownSpacing))
@@ -1132,12 +1173,12 @@ viewMarkdown model text =
             ]
 
 
-getSubmatch : Int -> Regex.Match -> String
-getSubmatch index match =
+getSubmatch : Int -> String -> Regex.Match -> String
+getSubmatch index default match =
     match.submatches
         |> List.Extra.getAt index
         |> Maybe.Extra.join
-        |> Maybe.withDefault ""
+        |> Maybe.withDefault default
 
 
 fixMarkdownSpacing : Markdown.Block.Block -> Markdown.Block.Block
