@@ -54,6 +54,7 @@ type Msg
     | DebouncePassed Int
     | ElasticUrlChanged String
     | FixNewlinesPressed
+    | FormatActionPressed
     | FormatCritEffectsPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
@@ -287,6 +288,49 @@ update msg model =
                         |> String.trim
             in
             ( { model | text = fixed }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        FormatActionPressed ->
+            ( { model
+                | text =
+                    Regex.replace
+                        (regexFromString "(Activate—)?(.*) (\\[.*\\]) (\\(.*\\)) (Trigger (.*?(?=;)); )?(Frequency (.*?(?=;)); )?(Requirements (.*?(?=;)); )?(Effect (.*))")
+                        (\match ->
+                            [ "NULL" -- ActionsID
+                            , getSubmatch 3 "NULL" match -- Name
+                            , getSubmatch 3 "NULL" match -- NameDisplay
+                            , getSubmatch 1 "NULL" match -- TitleName
+                            , "NULL" -- SourcesID
+                            , "NULL" -- Page
+                            , "NULL" -- TableName
+                            , "NULL" -- ObjectID
+                            , getSubmatch 2 "NULL" match -- ActionTypesID
+                                |> actionIdFromString
+                            , getSubmatch 11 "NULL" match -- Description
+                            , "NULL" -- ProficienciesID
+                            , "0" -- BasicAction
+                            , "0" -- SpecialBasicAction
+                            , "NULL" -- Prerequisites
+                            , getSubmatch 5 "NULL" match -- Trigger
+                            , getSubmatch 9 "NULL" match -- Requirements
+                            , getSubmatch 7 "NULL" match -- Frequency
+                            , "NULL" -- Cost
+                            , "NULL" -- CriticalEffectsID
+                            , "1" -- ActivateAction
+                            , "NULL" -- ActivateSource
+                            , "NULL" -- LegacyID
+                            ]
+                                |> List.map String.trim
+                                |> String.join "\t"
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+              }
             , Cmd.none
             )
                 |> updateCandidates
@@ -722,7 +766,7 @@ isCandidateInATag candidate rawText =
         text : String
         text =
             Regex.replace
-                (regexFromString "<%ACTION.TYPES#(.+?)%%>")
+                (regexFromString "<%ACTION(S|.TYPES)#(.+?)%%>")
                 (\match -> "")
                 rawText
 
@@ -1080,6 +1124,10 @@ view model =
                 [ HE.onClick FormatCritEffectsPressed
                 ]
                 [ Html.text "Format CritEffects" ]
+            , Html.button
+                [ HE.onClick FormatActionPressed
+                ]
+                [ Html.text "Format Action" ]
             ]
         , Html.div
             [ HA.class "row"
@@ -1441,6 +1489,28 @@ actionIdToString id =
 
         _ ->
             "[action-" ++ id ++ "]"
+
+
+actionIdFromString : String -> String
+actionIdFromString value =
+    case value of
+        "[one-action]" ->
+            "2"
+
+        "[two-actions]" ->
+            "3"
+
+        "[three-actions]" ->
+            "4"
+
+        "[reaction]" ->
+            "5"
+
+        "[free-action]" ->
+            "5"
+
+        _ ->
+            "NULL"
 
 
 viewCandidates : Model -> Html Msg
