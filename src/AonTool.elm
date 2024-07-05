@@ -296,26 +296,26 @@ update msg model =
             ( { model
                 | text =
                     Regex.replace
-                        (regexFromString "(Activate—)?(.*) (\\[.*\\]) (\\(.*\\)) (Trigger (.*?(?=;)); )?(Frequency (.*?(?=;)); )?(Requirements (.*?(?=;)); )?(Effect (.*))")
+                        (regexFromString "(?:Activate—)?(.*) (\\[.*\\]) (\\(.*\\))? ?(?:Trigger (.*?(?=;)); )?(?:Frequency (.*?(?=;)); )?(?:Requirements (.*?(?=;)); )?(?:Effect (.*))")
                         (\match ->
                             [ "NULL" -- ActionsID
-                            , getSubmatch 3 "NULL" match -- Name
-                            , getSubmatch 3 "NULL" match -- NameDisplay
-                            , getSubmatch 1 "NULL" match -- TitleName
+                            , getSubmatch 2 "" match -- Name
+                            , getSubmatch 2 "NULL" match -- NameDisplay
+                            , getSubmatch 0 "NULL" match -- TitleName
                             , "NULL" -- SourcesID
                             , "NULL" -- Page
                             , "NULL" -- TableName
                             , "NULL" -- ObjectID
-                            , getSubmatch 2 "NULL" match -- ActionTypesID
+                            , getSubmatch 1 "NULL" match -- ActionTypesID
                                 |> actionIdFromString
-                            , getSubmatch 11 "NULL" match -- Description
+                            , getSubmatch 6 "NULL" match -- Description
                             , "NULL" -- ProficienciesID
                             , "0" -- BasicAction
                             , "0" -- SpecialBasicAction
                             , "NULL" -- Prerequisites
-                            , getSubmatch 5 "NULL" match -- Trigger
-                            , getSubmatch 9 "NULL" match -- Requirements
-                            , getSubmatch 7 "NULL" match -- Frequency
+                            , getSubmatch 3 "NULL" match -- Trigger
+                            , getSubmatch 5 "NULL" match -- Requirements
+                            , getSubmatch 4 "NULL" match -- Frequency
                             , "NULL" -- Cost
                             , "NULL" -- CriticalEffectsID
                             , "1" -- ActivateAction
@@ -639,6 +639,7 @@ updateCandidates ( model, cmd ) =
                                 , "rules-2559" -- Cover
                                 , "rules-165" -- Movement
                                 , "rules-2271" -- Movement
+                                , "rules-2188" -- Multiple Attack Penalty
                                 ]
                             )
                             && not (document.category == "rules"
