@@ -1460,6 +1460,13 @@ markdownHtmlRenderer model =
                     (List.concat children)
                 ]
             )
+        , Markdown.Html.tag "ol"
+            (\children ->
+                [ Html.ol
+                    []
+                    (List.concat children)
+                ]
+            )
         , Markdown.Html.tag "ul"
             (\children ->
                 [ Html.ul
