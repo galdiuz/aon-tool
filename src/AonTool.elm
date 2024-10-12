@@ -907,6 +907,7 @@ linkCodeToUrl : String -> String
 linkCodeToUrl code =
     case code of
         "ACTIONS" -> "/Actions.aspx?ID="
+        "ALCHEMICAL.CATEGORIES" -> "Equipment.aspx?Category=6&Subcategory="
         "ANCESTRIES" -> "/Ancestries.aspx?ID="
         "ANIMAL.COMPANIONS.ADVANCED" -> "/AnimalCompanions.aspx?Advanced=true&ID="
         "ANIMAL.COMPANIONS.SPECIALIZED" -> "/AnimalCompanions.aspx?Specialized=true&ID="
@@ -955,6 +956,9 @@ linkCodeToUrl code =
         "FAMILIARS.SPECIFIC" -> "/Familiars.aspx?Specific=true&ID="
         "FEATS" -> "/Feats.aspx?ID="
         "FEATS.DEVIANT" -> "/DeviantFeats.aspx?ID="
+        "GEAR.ARMOR.CATEGORY" -> "/Equipment.aspx?Category=11&Subcategory="
+        "GEAR.SHIELDS.ALL" -> "/Shields.aspx"
+        "GEAR.WEAPONS.CATEGORY" -> "/Equipment.aspx?Category=37&Subcategory="
         "HAZARDS" -> "/Hazards.aspx?ID="
         "HAZARDS.WEATHER" -> "/WeatherHazards.aspx?ID="
         "HERITAGES" -> "/Heritages.aspx?ID="
@@ -967,6 +971,7 @@ linkCodeToUrl code =
         "RELIC.GIFTS" -> "/Relics.aspx?ID="
         "RITUALS" -> "/Rituals.aspx?ID="
         "RULES" -> "/Rules.aspx?ID="
+        "RUNES" -> "/Equipment.aspx?Category=23&Subcategory="
         "SHIELDS" -> "/Shields.aspx?ID="
         "SIEGE.WEAPONS" -> "/SiegeWeapons.aspx?ID="
         "SKILLS" -> "/Skills.aspx?ID="
@@ -980,7 +985,7 @@ linkCodeToUrl code =
         "WARFARE.TACTICS" -> "/KMWarTactics.aspx?ID="
         "WEAPON.GROUPS" -> "/WeaponGroups.aspx?ID="
         "WEAPONS" -> "/Weapons.aspx?ID="
-        _ -> ""
+        _ -> "/"
 
 
 selectionDecoder : Decode.Decoder Selection
@@ -1175,13 +1180,14 @@ viewMarkdown model text =
         markdown : Result (List String) (List Markdown.Block.Block)
         markdown =
             text
+                |> String.replace " & " " &amp; "
                 |> Regex.replace
                     (regexFromString "<%ACTION.TYPES#(.+?)%%>")
                     (\match ->
                         "<action id=\"" ++ getSubmatch 0 "" match ++ "\" />"
                     )
                 |> Regex.replace
-                    (regexFromString "<%(.+?)%(.+?)%%>(.+?)<%END>")
+                    (regexFromString "<%([^%]+?)%([^%]+?)%%>(.+?)<%END>")
                     (\match ->
                         [ "<link code=\""
                         , getSubmatch 0 "" match
@@ -1189,6 +1195,17 @@ viewMarkdown model text =
                         , getSubmatch 1 "" match
                         , "\">"
                         , getSubmatch 2 "" match
+                        , "</link>"
+                        ]
+                            |> String.join ""
+                    )
+                |> Regex.replace
+                    (regexFromString "<%([^%]+?)%%>(.+?)<%END>")
+                    (\match ->
+                        [ "<link code=\""
+                        , getSubmatch 0 "" match
+                        , "\">"
+                        , getSubmatch 1 "" match
                         , "</link>"
                         ]
                             |> String.join ""
@@ -1414,17 +1431,27 @@ markdownHtmlRenderer model =
                 ]
             )
         , Markdown.Html.tag "link"
-            (\code id children ->
-                [ Html.a
-                    [ HA.href (model.aonUrl ++ linkCodeToUrl code ++ id)
-                    , HA.style "text-decoration" "underline"
-                    , HA.title ("<%" ++ code ++ "%" ++ id ++ "%%>")
-                    ]
-                    (List.concat children)
+            (\code maybeId children ->
+                [ case maybeId of
+                    Just id ->
+                        Html.a
+                            [ HA.href (model.aonUrl ++ linkCodeToUrl code ++ id)
+                            , HA.style "text-decoration" "underline"
+                            , HA.title ("<%" ++ code ++ "%" ++ id ++ "%%>")
+                            ]
+                            (List.concat children)
+
+                    Nothing ->
+                        Html.a
+                            [ HA.href (model.aonUrl ++ linkCodeToUrl code)
+                            , HA.style "text-decoration" "underline"
+                            , HA.title ("<%" ++ code ++ "%%>")
+                            ]
+                            (List.concat children)
                 ]
             )
             |> Markdown.Html.withAttribute "code"
-            |> Markdown.Html.withAttribute "id"
+            |> Markdown.Html.withOptionalAttribute "id"
         , Markdown.Html.tag "table"
             (\children ->
                 [ Html.table
