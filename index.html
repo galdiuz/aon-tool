@@ -1,0 +1,48 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AoN Tool</title>
+    <script src="app-86db479089fb2e57be91e3137752be968c14603d.js"></script>
+    <link rel="preload" as="font" href="Pathfinder-Icons.ttf" type="font/ttf" crossorigin="anonymous">
+</head>
+<body>
+    <script>
+        let container = document.createElement('div');
+        document.body.appendChild(container);
+        let app = Elm.AonTool.init({
+            node: container,
+            flags: {
+                localStorage: { ...localStorage },
+            }
+        });
+
+        app.ports.clipboard_set.subscribe(value => {
+            navigator.clipboard.writeText(value);
+        });
+
+        app.ports.clipboard_get.subscribe(_ => {
+            navigator.clipboard.readText().then(value => {
+                app.ports.clipboard_receive.send(value);
+            });
+        });
+
+        app.ports.localStorage_set.subscribe(data => {
+            localStorage.setItem(data.key, data.value);
+        });
+
+        document.addEventListener("selectionchange", () => {
+            if (document.activeElement.id == "text") {
+                let start = document.activeElement.selectionStart;
+                let end = document.activeElement.selectionEnd;
+
+                app.ports.selectionChanged.send({
+                    text: document.activeElement.value.slice(start, end),
+                    start: start,
+                    end: end,
+                });
+            }
+        });
+    </script>
+</body>
+</html>
