@@ -767,7 +767,7 @@ isCandidateInATag candidate rawText =
         text : String
         text =
             Regex.replace
-                (regexFromString "<%ACTION(S|.TYPES)#(.+?)%%>")
+                (regexFromString "<%(ACTION(S|.TYPES)|TABLESHTML)#(.+?)%%>")
                 (\match -> "")
                 rawText
 
@@ -907,7 +907,7 @@ linkCodeToUrl : String -> String
 linkCodeToUrl code =
     case code of
         "ACTIONS" -> "/Actions.aspx?ID="
-        "ALCHEMICAL.CATEGORIES" -> "Equipment.aspx?Category=6&Subcategory="
+        "ALCHEMICAL.CATEGORIES" -> "/Equipment.aspx?Category=6&Subcategory="
         "ANCESTRIES" -> "/Ancestries.aspx?ID="
         "ANIMAL.COMPANIONS.ADVANCED" -> "/AnimalCompanions.aspx?Advanced=true&ID="
         "ANIMAL.COMPANIONS.SPECIALIZED" -> "/AnimalCompanions.aspx?Specialized=true&ID="
@@ -1404,6 +1404,14 @@ markdownHtmlRenderer model =
         , Markdown.Html.tag "h2"
             (\class children ->
                 [ Html.h2
+                    [ HA.class (Maybe.withDefault "" class) ]
+                    (List.concat children)
+                ]
+            )
+            |> Markdown.Html.withOptionalAttribute "class"
+        , Markdown.Html.tag "h3"
+            (\class children ->
+                [ Html.h3
                     [ HA.class (Maybe.withDefault "" class) ]
                     (List.concat children)
                 ]
