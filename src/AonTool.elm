@@ -1460,6 +1460,20 @@ markdownHtmlRenderer model =
             )
             |> Markdown.Html.withAttribute "code"
             |> Markdown.Html.withOptionalAttribute "id"
+        , Markdown.Html.tag "p"
+            (\children ->
+                [ Html.p
+                    []
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "span"
+            (\children ->
+                [ Html.span
+                    []
+                    (List.concat children)
+                ]
+            )
         , Markdown.Html.tag "table"
             (\children ->
                 [ Html.table
