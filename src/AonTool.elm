@@ -113,6 +113,16 @@ emptySelection =
     }
 
 
+defaultAonUrl : String
+defaultAonUrl =
+    "https://2e.aonprd.com"
+
+
+defaultElasticsearchUrl : String
+defaultElasticsearchUrl =
+    "https://elasticsearch.aonprd.com/aon"
+
+
 main : Program Decode.Value Model Msg
 main =
     Browser.element
@@ -131,12 +141,12 @@ init flagsValue =
             Decode.decodeValue flagsDecoder flagsValue
                 |> Result.withDefault defaultFlags
     in
-    ( { aonUrl = "https://2e.aonprd.com"
+    ( { aonUrl = defaultAonUrl
       , candidates = []
       , currentCandidate = Nothing
       , debounce = 0
       , documents = []
-      , elasticUrl = "https://elasticsearch.aonprd.com/aon"
+      , elasticUrl = defaultElasticsearchUrl
       , manualSearch = ""
       , selection = emptySelection
       , text = ""
@@ -179,7 +189,9 @@ update msg model =
 
         AonUrlChanged value ->
             ( { model | aonUrl = value }
-            , Cmd.none
+            , saveToLocalStorage
+                "aon-url"
+                value
             )
 
         ApplyCandidatePressed candidate ->
@@ -253,7 +265,9 @@ update msg model =
 
         ElasticUrlChanged value ->
             ( { model | elasticUrl = value }
-            , Cmd.none
+            , saveToLocalStorage
+                "elasticsearch-url"
+                value
             )
 
         FixNewlinesPressed ->
@@ -466,6 +480,13 @@ flagsDecoder =
 updateModelFromLocalStorage : ( String, String ) -> Model -> Model
 updateModelFromLocalStorage ( key, value ) model =
     case key of
+        "aon-url" ->
+            if String.isEmpty value then
+                model
+
+            else
+                { model | aonUrl = value }
+
         "data" ->
             case Decode.decodeString (Decode.list documentDecoder) value of
                 Ok documents ->
@@ -473,6 +494,13 @@ updateModelFromLocalStorage ( key, value ) model =
 
                 Err _ ->
                     model
+
+        "elasticsearch-url" ->
+            if String.isEmpty value then
+                model
+
+            else
+                { model | elasticUrl = value }
 
         _ ->
             model
@@ -1033,6 +1061,7 @@ view model =
                 [ Html.text "Elasticsearch URL"
                 , Html.input
                     [ HA.style "width" "300px"
+                    , HA.placeholder defaultElasticsearchUrl
                     , HA.value model.elasticUrl
                     , HE.onInput ElasticUrlChanged
                     ]
@@ -1046,6 +1075,7 @@ view model =
                 [ Html.text "AoN URL"
                 , Html.input
                     [ HA.style "width" "300px"
+                    , HA.placeholder defaultAonUrl
                     , HA.value model.aonUrl
                     , HE.onInput AonUrlChanged
                     ]
