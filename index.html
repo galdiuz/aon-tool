@@ -31,16 +31,30 @@
             localStorage.setItem(data.key, data.value);
         });
 
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key == 'u') {
+                e.preventDefault();
+            }
+        });
+
         document.addEventListener("selectionchange", () => {
             if (document.activeElement.id == "text") {
                 let start = document.activeElement.selectionStart;
                 let end = document.activeElement.selectionEnd;
 
-                app.ports.selectionChanged.send({
+                app.ports.selection_changed.send({
                     text: document.activeElement.value.slice(start, end),
                     start: start,
                     end: end,
                 });
+            }
+        });
+
+        app.ports.selection_set.subscribe(data => {
+            if (document.activeElement.id == "text") {
+                window.requestAnimationFrame(() => {
+                    document.activeElement.setSelectionRange(data.start, data.end)
+                })
             }
         });
     </script>

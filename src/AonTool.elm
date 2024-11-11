@@ -1,6 +1,7 @@
 port module AonTool exposing (main)
 
 import Browser
+import Browser.Events
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as HA
@@ -26,7 +27,8 @@ port clipboard_get : () -> Cmd msg
 port clipboard_receive : (String -> msg) -> Sub msg
 port clipboard_set : String -> Cmd msg
 port localStorage_set : Encode.Value -> Cmd msg
-port selectionChanged : (Decode.Value -> msg) -> Sub msg
+port selection_changed : (Decode.Value -> msg) -> Sub msg
+port selection_set : Encode.Value -> Cmd msg
 
 
 type alias Model =
@@ -36,9 +38,12 @@ type alias Model =
     , debounce : Int
     , documents : List Document
     , elasticUrl : String
+    , ignoreNextTextChanged : Bool
     , manualSearch : String
     , selection : Selection
     , text : String
+    , textFocused : Bool
+    , undo : Maybe Undo
     }
 
 
@@ -58,11 +63,14 @@ type Msg
     | FormatCritEffectsPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
+    | KeyPressed KeyEvent
     | ManualSearchChanged String
     | PasteFromClipboardPressed
     | RefreshDataPressed
     | SelectionChanged Decode.Value
     | TextChanged String
+    | TextFocused Bool
+    | UndoPressed
     | WrapWithPressed String String
 
 
@@ -113,6 +121,18 @@ emptySelection =
     }
 
 
+type alias Undo =
+    { text : String
+    , selection : Selection
+    }
+
+
+type alias KeyEvent =
+    { ctrl : Bool
+    , key : String
+    }
+
+
 defaultAonUrl : String
 defaultAonUrl =
     "https://2e.aonprd.com"
@@ -147,9 +167,12 @@ init flagsValue =
       , debounce = 0
       , documents = []
       , elasticUrl = defaultElasticsearchUrl
+      , ignoreNextTextChanged = False
       , manualSearch = ""
       , selection = emptySelection
       , text = ""
+      , textFocused = False
+      , undo = Nothing
       }
         |> \model ->
             List.foldl
@@ -171,7 +194,8 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ clipboard_receive GotClipboardContents
-        , selectionChanged SelectionChanged
+        , selection_changed SelectionChanged
+        , Browser.Events.onKeyDown keyEventDecoder
         ]
 
 
@@ -182,8 +206,13 @@ update msg model =
             ( { model
                 | text =
                     String.Extra.insertAt "<br />" model.selection.start model.text
+                , undo = Just <| undoFromModel model
               }
-            , Cmd.none
+            , if model.selection.start == model.selection.end then
+                setSelection (model.selection.start + 6) (model.selection.start + 6)
+
+              else
+                setSelection model.selection.start (model.selection.end + 6)
             )
                 |> updateCandidates
 
@@ -198,6 +227,7 @@ update msg model =
             ( { model
                 | text =
                     applyCandidate candidate model.text
+                , undo = Just <| undoFromModel model
               }
             , Cmd.none
             )
@@ -235,6 +265,7 @@ update msg model =
                         model.selection.start
                         model.selection.end
                         model.text
+                , undo = Just <| undoFromModel model
               }
             , Cmd.none
             )
@@ -301,7 +332,10 @@ update msg model =
                         |> String.join "<br /><br />"
                         |> String.trim
             in
-            ( { model | text = fixed }
+            ( { model
+                | text = fixed
+                , undo = Just <| undoFromModel model
+              }
             , Cmd.none
             )
                 |> updateCandidates
@@ -344,6 +378,7 @@ update msg model =
                             |> String.replace "\n" " "
                             |> String.Extra.clean
                         )
+                , undo = Just <| undoFromModel model
               }
             , Cmd.none
             )
@@ -368,6 +403,7 @@ update msg model =
                             |> String.replace "\n" " "
                             |> String.Extra.clean
                         )
+                , undo = Just <| undoFromModel model
               }
             , Cmd.none
             )
@@ -415,6 +451,30 @@ update msg model =
             , clipboard_get ()
             )
 
+        KeyPressed event ->
+            if event.ctrl && event.key == "b" then
+                update (WrapWithPressed "<b>" "</b>") model
+
+            else if event.ctrl && event.key == "i" then
+                update (WrapWithPressed "<i>" "</i>") model
+
+            else if event.ctrl && event.key == "u" then
+                update (WrapWithPressed "<u>" "</u>") model
+
+            else if event.ctrl && event.key == "z" then
+                update UndoPressed model
+
+            else if event.ctrl && event.key == " " then
+                update FixNewlinesPressed model
+
+            else if event.ctrl && event.key == "Enter" then
+                update AddBrPressed model
+
+            else
+                ( model
+                , Cmd.none
+                )
+
         ManualSearchChanged value ->
             ( { model
                 | debounce = model.debounce + 1
@@ -440,6 +500,7 @@ update msg model =
             in
             ( { model
                 | debounce = model.debounce + 1
+                , ignoreNextTextChanged = False
                 , manualSearch = String.trim selection.text
                 , selection = selection
               }
@@ -448,25 +509,71 @@ update msg model =
             )
 
         TextChanged text ->
-            ( { model
-                | debounce = model.debounce + 1
-                , selection = emptySelection
-                , text = String.replace "\r" "" text
-              }
-            , Process.sleep 250
-                |> Task.perform (\_ -> DebouncePassed (model.debounce + 1))
+            if model.ignoreNextTextChanged then
+                ( model
+                , Cmd.none
+                )
+
+            else
+                ( { model
+                    | debounce = model.debounce + 1
+                    , selection = emptySelection
+                    , text = String.replace "\r" "" text
+                    , undo = Nothing
+                  }
+                , Cmd.none
+                )
+
+        TextFocused focused ->
+            ( { model | textFocused = focused }
+            , Cmd.none
             )
 
+        UndoPressed ->
+            case model.undo of
+                Just undo ->
+                    ( { model
+                        | text = undo.text
+                        , ignoreNextTextChanged = True
+                        , undo = Nothing
+                      }
+                    , setSelection undo.selection.start undo.selection.end
+                    )
+
+                Nothing ->
+                    ( model
+                    , Cmd.none
+                    )
+
         WrapWithPressed start end ->
+            let
+                length : Int
+                length =
+                    String.length start + String.length end
+            in
             ( { model
                 | text =
                     model.text
                         |> String.Extra.insertAt end model.selection.end
                         |> String.Extra.insertAt start model.selection.start
+                , undo = Just <| undoFromModel model
               }
-            , Cmd.none
+            , if model.selection.start == model.selection.end then
+                setSelection (model.selection.start + length) (model.selection.start + length)
+
+              else
+                setSelection model.selection.start (model.selection.end + length)
+
             )
                 |> updateCandidates
+
+
+undoFromModel : Model -> Undo
+undoFromModel model =
+    { text = model.text
+    , selection = model.selection
+    }
+
 
 
 flagsDecoder : Decode.Decoder Flags
@@ -475,6 +582,17 @@ flagsDecoder =
     Decode.succeed
         { localStorage = Maybe.withDefault defaultFlags.localStorage localStorage
         }
+
+
+keyEventDecoder : Decode.Decoder Msg
+keyEventDecoder =
+    Field.require "ctrlKey" Decode.bool <| \ctrl ->
+    Field.require "key" Decode.string <| \key ->
+    Decode.succeed
+        { ctrl = ctrl
+        , key = key
+        }
+        |> Decode.map KeyPressed
 
 
 updateModelFromLocalStorage : ( String, String ) -> Model -> Model
@@ -504,6 +622,16 @@ updateModelFromLocalStorage ( key, value ) model =
 
         _ ->
             model
+
+
+setSelection : Int -> Int -> Cmd msg
+setSelection start end =
+    selection_set
+        (Encode.object
+            [ ( "start", Encode.int start )
+            , ( "end", Encode.int end )
+            ]
+        )
 
 
 saveToLocalStorage : String -> String -> Cmd msg
@@ -555,7 +683,7 @@ buildDataBody model searchAfter =
                           , Encode.list Encode.object
                                 [ [ ( "query_string"
                                   , Encode.object
-                                        [ ( "query", Encode.string "!category:(category-page OR class-feature) !remaster_id:*" )
+                                        [ ( "query", Encode.string "!category:(category-page OR class-feature OR sidebar) !remaster_id:*" )
                                         , ( "default_operator", Encode.string "AND" )
                                         ]
                                   )
@@ -1093,6 +1221,8 @@ view model =
                 , HA.style "width" "100%"
                 , HA.style "height" "250px"
                 , HE.onInput TextChanged
+                , HE.onFocus (TextFocused True)
+                , HE.onBlur (TextFocused False)
                 ]
                 []
             , viewPreview model
@@ -1126,22 +1256,27 @@ view model =
             [ Html.text "Utility"
             , Html.button
                 [ HE.onClick FixNewlinesPressed
+                , HA.title "Ctrl + Space"
                 ]
                 [ Html.text "Fix newlines" ]
             , Html.button
                 [ HE.onClick AddBrPressed
+                , HA.title "Ctrl + Enter"
                 ]
                 [ Html.text "Add <br />" ]
             , Html.button
                 [ HE.onClick (WrapWithPressed "<b>" "</b>")
+                , HA.title "Ctrl + B"
                 ]
                 [ Html.text "Wrap with <b>" ]
             , Html.button
                 [ HE.onClick (WrapWithPressed "<i>" "</i>")
+                , HA.title "Ctrl + I"
                 ]
                 [ Html.text "Wrap with <i>" ]
             , Html.button
                 [ HE.onClick (WrapWithPressed "<u>" "</u>")
+                , HA.title "Ctrl + U"
                 ]
                 [ Html.text "Wrap with <u>" ]
             , Html.button
