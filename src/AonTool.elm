@@ -890,6 +890,7 @@ updateCandidates ( model, cmd ) =
                                 , "rules-165" -- Movement
                                 , "rules-2271" -- Movement
                                 , "rules-2188" -- Multiple Attack Penalty
+                                , "rules-2624" -- Time
                                 ]
                             )
                             && not (document.category == "rules"
@@ -1415,26 +1416,89 @@ viewPreview model =
         , HA.style "max-height" "250px"
         , HA.style "overflow-y" "auto"
         ]
-        (case model.currentCandidate of
-            Just candidate ->
-                let
-                    endIndex : Int
-                    endIndex =
-                        candidate.index + String.length candidate.document.name
-                in
-                model.text
-                    |> String.Extra.replaceSlice
-                        ("<highlight>"
-                            ++ (String.slice candidate.index endIndex model.text)
-                            ++ "</highlight>"
-                        )
-                        candidate.index
-                        endIndex
-                    |> viewMarkdown model
-
-            Nothing ->
-                viewMarkdown model model.text
+        (model.text
+            |> highlightCandidate model
+            |> highlightSelection model
+            |> viewMarkdown model
         )
+
+
+highlightCandidate : Model -> String -> String
+highlightCandidate model text =
+    case model.currentCandidate of
+        Just candidate ->
+            let
+                endIndex : Int
+                endIndex =
+                    candidate.index + String.length candidate.document.name
+            in
+            model.text
+                |> String.Extra.replaceSlice
+                    (String.join
+                        ""
+                        [ "<highlight-candidate>"
+                        , String.slice candidate.index endIndex text
+                        , "</highlight-candidate>"
+                        ]
+                    )
+                    candidate.index
+                    endIndex
+
+        Nothing ->
+            text
+
+
+highlightSelection : Model -> String -> String
+highlightSelection model text =
+    if model.selection.start == model.selection.end then
+        text
+
+    else
+        let
+            -- ( Int, Int )
+            ( start, end ) =
+                case model.currentCandidate of
+                    Just candidate ->
+                        let
+                            candidateEnd : Int
+                            candidateEnd =
+                                candidate.index + String.length candidate.document.name
+                        in
+                        ( model.selection.start
+                        , if candidate.index >= model.selection.start
+                            && candidateEnd <= model.selection.end
+                          then
+                            model.selection.end + (String.length "<highlight-candidate></highlight-candidate>")
+
+                          else if candidate.index >= model.selection.start
+                            && candidateEnd > model.selection.end
+                          then
+                            candidate.index + (String.length "<highlight-candidate>")
+
+                          else
+                            model.selection.end
+                        )
+
+                    Nothing ->
+                        ( model.selection.start, model.selection.end )
+        in
+        String.Extra.replaceSlice
+            (String.join
+                ""
+                [ "<highlight-selection>"
+                , String.slice start end text
+                    |> Regex.replace
+                        (regexFromString "<.+?>")
+                        (\match ->
+                            "</highlight-selection>" ++ match.match ++ "<highlight-selection>"
+                        )
+
+                , "</highlight-selection>"
+                ]
+            )
+            start
+            end
+            text
 
 
 viewMarkdown : Model -> String -> List (Html Msg)
@@ -1612,6 +1676,7 @@ markdownRenderer model =
             ]
     , html = markdownHtmlRenderer model
     , image = defaultRenderer.image >> List.singleton
+    , inlines = List.concat
     , link =
         \linkData ->
             List.concat >> defaultRenderer.link linkData >> List.singleton
@@ -1680,10 +1745,17 @@ markdownHtmlRenderer model =
                 ]
             )
             |> Markdown.Html.withOptionalAttribute "class"
-        , Markdown.Html.tag "highlight"
+        , Markdown.Html.tag "highlight-candidate"
             (\children ->
                 [ Html.span
-                    [ HA.style "color" "#ff00ff" ]
+                    [ HA.class "highlight-candidate" ]
+                    (List.concat children)
+                ]
+            )
+        , Markdown.Html.tag "highlight-selection"
+            (\children ->
+                [ Html.span
+                    [ HA.class "highlight-selection" ]
                     (List.concat children)
                 ]
             )
@@ -2110,6 +2182,14 @@ css =
     h2.title {
         background-color: #806e45;
         color: #0f0f0f;
+    }
+
+    .highlight-candidate, .highlight-candidate .highlight-selection {
+        color: #ff00ff;
+    }
+
+    .highlight-selection {
+        color: #00ffff;
     }
 
     .icon-font {
