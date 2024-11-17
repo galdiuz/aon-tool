@@ -38,7 +38,7 @@
         });
 
         document.addEventListener("selectionchange", () => {
-            if (document.activeElement.id == "text") {
+            if (document.activeElement.className == "text") {
                 let start = document.activeElement.selectionStart;
                 let end = document.activeElement.selectionEnd;
 

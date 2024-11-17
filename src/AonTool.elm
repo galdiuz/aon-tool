@@ -4,6 +4,7 @@ import Browser
 import Browser.Events
 import Dict exposing (Dict)
 import Html exposing (Html)
+import Html.Extra
 import Html.Attributes as HA
 import Html.Attributes.Extra as HAE
 import Html.Events as HE
@@ -35,12 +36,16 @@ type alias Model =
     { aonUrl : String
     , candidates : List Candidate
     , currentCandidate : Maybe Candidate
+    , currentTable : Maybe String
+    , currentTableColumn : Maybe String
     , debounce : Int
     , documents : List Document
     , elasticUrl : String
     , ignoreNextTextChanged : Bool
     , manualSearch : String
+    , pasteToTable : Bool
     , selection : Selection
+    , tableValues : Dict String String
     , text : String
     , textFocused : Bool
     , undo : Maybe Undo
@@ -54,21 +59,25 @@ type Msg
     | CandidateSelected Candidate
     | ConvertActionsPressed
     | ConvertToListPressed
+    | CopyRowToClipboardPressed
     | CopyToClipboardPressed
     | CopyFirstSentenceToClipboardPressed
     | DebouncePassed Int
     | ElasticUrlChanged String
     | FixNewlinesPressed
-    | FormatActionPressed
-    | FormatCritEffectsPressed
     | FormatTraitsPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
     | KeyPressed KeyEvent
     | ManualSearchChanged String
+    | ParseActionPressed
+    | ParseCritEffectsPressed
     | PasteFromClipboardPressed
+    | PasteRowFromClipboardPressed
     | RefreshDataPressed
     | SelectionChanged Decode.Value
+    | TableColumnInputFocused String
+    | TableSelected String
     | TextChanged String
     | TextFocused Bool
     | UndoPressed
@@ -123,8 +132,9 @@ emptySelection =
 
 
 type alias Undo =
-    { text : String
-    , selection : Selection
+    { selection : Selection
+    , tableValues : Dict String String
+    , text : String
     }
 
 
@@ -165,12 +175,16 @@ init flagsValue =
     ( { aonUrl = defaultAonUrl
       , candidates = []
       , currentCandidate = Nothing
+      , currentTable = Nothing
+      , currentTableColumn = Nothing
       , debounce = 0
       , documents = []
       , elasticUrl = defaultElasticsearchUrl
       , ignoreNextTextChanged = False
       , manualSearch = ""
+      , pasteToTable = False
       , selection = emptySelection
+      , tableValues = Dict.empty
       , text = ""
       , textFocused = False
       , undo = Nothing
@@ -271,6 +285,18 @@ update msg model =
             , Cmd.none
             )
 
+        CopyRowToClipboardPressed ->
+            ( model
+            , List.map
+                (\column ->
+                    Dict.get column model.tableValues
+                        |> Maybe.withDefault "NULL"
+                )
+                (currentTableColumns model)
+                |> String.join "\t"
+                |> clipboard_set
+            )
+
         CopyToClipboardPressed ->
             ( model
             , clipboard_set model.text
@@ -341,75 +367,6 @@ update msg model =
             )
                 |> updateCandidates
 
-        FormatActionPressed ->
-            ( { model
-                | text =
-                    Regex.replace
-                        (regexFromString "(?:Activate—)?(.*) (\\[.*\\]) (\\(.*\\))? ?(?:Trigger (.*?(?=;)); )?(?:Frequency (.*?(?=;)); )?(?:Requirements (.*?(?=;)); )?(?:Effect (.*))")
-                        (\match ->
-                            [ "NULL" -- ActionsID
-                            , getSubmatch 2 "" match -- Name
-                            , getSubmatch 2 "NULL" match -- NameDisplay
-                            , getSubmatch 0 "NULL" match -- TitleName
-                            , "NULL" -- SourcesID
-                            , "NULL" -- Page
-                            , "NULL" -- TableName
-                            , "NULL" -- ObjectID
-                            , getSubmatch 1 "NULL" match -- ActionTypesID
-                                |> actionIdFromString
-                            , getSubmatch 6 "NULL" match -- Description
-                            , "NULL" -- ProficienciesID
-                            , "0" -- BasicAction
-                            , "0" -- SpecialBasicAction
-                            , "NULL" -- Prerequisites
-                            , getSubmatch 3 "NULL" match -- Trigger
-                            , getSubmatch 5 "NULL" match -- Requirements
-                            , getSubmatch 4 "NULL" match -- Frequency
-                            , "NULL" -- Cost
-                            , "NULL" -- CriticalEffectsID
-                            , "1" -- ActivateAction
-                            , "NULL" -- ActivateSource
-                            , "NULL" -- LegacyID
-                            ]
-                                |> List.map String.trim
-                                |> String.join "\t"
-                        )
-                        (model.text
-                            |> String.replace "\r" ""
-                            |> String.replace "\n" " "
-                            |> String.Extra.clean
-                        )
-                , undo = Just <| undoFromModel model
-              }
-            , Cmd.none
-            )
-                |> updateCandidates
-
-        FormatCritEffectsPressed ->
-            ( { model
-                | text =
-                    Regex.replace
-                        (regexFromString "^.*?(Critical Success (.*?(?=Success)|$))?(Success (.*?((?=Failure)|$)))?(Failure (.*?((?=Critical Failure)|$)))?(Critical Failure (.*))?$")
-                        (\match ->
-                            [ getSubmatch 1 "NULL" match
-                            , getSubmatch 3 "NULL" match
-                            , getSubmatch 6 "NULL" match
-                            , getSubmatch 9 "NULL" match
-                            ]
-                                |> List.map String.trim
-                                |> String.join "\t"
-                        )
-                        (model.text
-                            |> String.replace "\r" ""
-                            |> String.replace "\n" " "
-                            |> String.Extra.clean
-                        )
-                , undo = Just <| undoFromModel model
-              }
-            , Cmd.none
-            )
-                |> updateCandidates
-
         FormatTraitsPressed ->
             ( { model
                 | text =
@@ -463,14 +420,33 @@ update msg model =
                 |> updateCandidates
 
         GotClipboardContents value ->
-            ( { model
-                | manualSearch = ""
-                , selection = emptySelection
-                , text = String.replace "\r" "" value
-              }
-            , Cmd.none
-            )
-                |> updateCandidates
+            if model.pasteToTable then
+                ( { model
+                    | currentTableColumn = Nothing
+                    , manualSearch = ""
+                    , selection = emptySelection
+                    , tableValues =
+                        List.Extra.zip
+                            (currentTableColumns model)
+                            (String.split "\t" value)
+                            |> Dict.fromList
+                    , text = ""
+                    , undo = Just <| undoFromModel model
+                  }
+                , Cmd.none
+                )
+                    |> updateCandidates
+
+            else
+                ( { model
+                    | manualSearch = ""
+                    , selection = emptySelection
+                    , text = String.replace "\r" "" value
+                    , undo = Just <| undoFromModel model
+                  }
+                , Cmd.none
+                )
+                    |> updateCandidates
 
         GotDataResult result ->
             case result of
@@ -500,11 +476,6 @@ update msg model =
 
                 Err _ ->
                     ( model, Cmd.none )
-
-        PasteFromClipboardPressed ->
-            ( model
-            , clipboard_get ()
-            )
 
         KeyPressed event ->
             if event.ctrl && event.key == "b" then
@@ -539,6 +510,92 @@ update msg model =
                 |> Task.perform (\_ -> DebouncePassed (model.debounce + 1))
             )
 
+        ParseActionPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (regexFromString "(?:Activate—)?(.*) (\\[.*\\]) (\\(.*\\))? ?(?:Trigger (.*?(?=;)); )?(?:Frequency (.*?(?=;)); )?(?:Requirements (.*?(?=;)); )?(?:Effect (.*))")
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "ActionsID", "" )
+                            , ( "Name", getSubmatch 2 "" match )
+                            , ( "NameDisplay", getSubmatch 2 "" match )
+                            , ( "TitleName", getSubmatch 0 "" match )
+                            , ( "SourcesID", "" )
+                            , ( "Page", "" )
+                            , ( "TableName", "" )
+                            , ( "ObjectID", "" )
+                            , ( "ActionTypesID", getSubmatch 1 "" match |> actionIdFromString )
+                            , ( "Description", getSubmatch 6 "" match )
+                            , ( "ProficienciesID", "" )
+                            , ( "BasicAction", "0" )
+                            , ( "SpecialBasicAction", "0" )
+                            , ( "Prerequisites", "" )
+                            , ( "Trigger", getSubmatch 3 "" match )
+                            , ( "Requirements", getSubmatch 5 "" match )
+                            , ( "Frequency", getSubmatch 4 "" match )
+                            , ( "Cost", "" )
+                            , ( "CriticalEffectsID", "" )
+                            , ( "ActivateAction", "1" )
+                            , ( "ActivateSource", "" )
+                            , ( "LegacyID", "" )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        ParseCritEffectsPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (regexFromString "^.*?(Critical Success (.*?(?=Success)|$))?(Success (.*?((?=(Critical )?Failure)|$)))?(Failure (.*?((?=Critical Failure)|$)))?(Critical Failure (.*))?$")
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "CritSuccess", getSubmatch 1 "" match )
+                            , ( "Success", getSubmatch 3 "" match )
+                            , ( "Failure", getSubmatch 7 "" match )
+                            , ( "CritFailure" , getSubmatch 10 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        PasteFromClipboardPressed ->
+            ( { model | pasteToTable = False }
+            , clipboard_get ()
+            )
+
+        PasteRowFromClipboardPressed ->
+            ( { model | pasteToTable = True }
+            , clipboard_get ()
+            )
+
         RefreshDataPressed ->
             ( { model | documents = [] }
             , Cmd.none
@@ -563,6 +620,30 @@ update msg model =
                 |> Task.perform (\_ -> DebouncePassed (model.debounce + 1))
             )
 
+        TableColumnInputFocused column ->
+            ( { model
+                | currentTableColumn = Just column
+                , text =
+                    Dict.get column model.tableValues
+                        |> Maybe.withDefault ""
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        TableSelected table ->
+            ( { model
+                | currentTable =
+                    if model.currentTable == Just table then
+                        Nothing
+
+                    else
+                        Just table
+                , currentTableColumn = Nothing
+              }
+            , Cmd.none
+            )
+
         TextChanged text ->
             if model.ignoreNextTextChanged then
                 ( model
@@ -573,6 +654,16 @@ update msg model =
                 ( { model
                     | debounce = model.debounce + 1
                     , selection = emptySelection
+                    , tableValues =
+                        case model.currentTableColumn of
+                            Just column ->
+                                Dict.insert
+                                    column
+                                    (String.replace "\r" "" text)
+                                    model.tableValues
+
+                            Nothing ->
+                                model.tableValues
                     , text = String.replace "\r" "" text
                     , undo = Nothing
                   }
@@ -588,8 +679,9 @@ update msg model =
             case model.undo of
                 Just undo ->
                     ( { model
-                        | text = undo.text
-                        , ignoreNextTextChanged = True
+                        | ignoreNextTextChanged = True
+                        , tableValues = undo.tableValues
+                        , text = undo.text
                         , undo = Nothing
                       }
                     , setSelection undo.selection.start undo.selection.end
@@ -625,8 +717,9 @@ update msg model =
 
 undoFromModel : Model -> Undo
 undoFromModel model =
-    { text = model.text
-    , selection = model.selection
+    { selection = model.selection
+    , text = model.text
+    , tableValues = model.tableValues
     }
 
 
@@ -1262,12 +1355,13 @@ view model =
             [ Html.text css
             ]
         , viewOptions model
+        , viewTables model
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
             ]
             [ Html.textarea
-                [ HA.id "text"
+                [ HA.class "text"
                 , HA.style "flex" "1"
                 , HA.value model.text
                 , HA.style "width" "100%"
@@ -1410,17 +1504,9 @@ viewUtilities =
             ]
             [ Html.text "Convert actions" ]
         , Html.button
-            [ HE.onClick FormatActionPressed
-            ]
-            [ Html.text "Format Action" ]
-        , Html.button
-            [ HE.onClick FormatCritEffectsPressed
-            ]
-            [ Html.text "Format CritEffects" ]
-        , Html.button
             [ HE.onClick FormatTraitsPressed
             ]
-            [ Html.text "Format Traits" ]
+            [ Html.text "Convert traits to IDs" ]
         ]
 
 
@@ -2122,6 +2208,151 @@ viewManual model =
                 )
             )
         ]
+
+
+viewTables : Model -> Html Msg
+viewTables model =
+    Html.div
+        [ HA.class "column"
+        , HA.class "gap-small"
+        ]
+        [ Html.div
+            [ HA.class "row"
+            , HA.class "gap-small"
+            , HA.class "align-center"
+            , HA.class "wrap"
+            ]
+            (List.append
+                [ Html.text "Tables" ]
+                (List.map
+                    (\table ->
+                        Html.button
+                            [ HE.onClick (TableSelected table)
+                            ]
+                            [ Html.text table ]
+                    )
+                    [ "Actions"
+                    , "CriticalEffects"
+                    ]
+                )
+            )
+        , Html.Extra.viewIf
+            (model.currentTable /= Nothing)
+            (Html.div
+                [ HA.style "display" "grid"
+                , HA.style "grid-template-columns" "repeat(auto-fill, 200px)"
+                ]
+                (List.map
+                    (\column ->
+                        Html.label
+                            [ HA.class "column"
+                            , HA.style "padding" "4px"
+                            , HA.style "border" "transparent 1px solid"
+                            , HAE.attributeIf
+                                (model.currentTableColumn == Just column)
+                                (HA.style "border" "white 1px solid")
+                            , HE.onInput TextChanged
+                            ]
+                            [ Html.text column
+                            , Html.input
+                                [ HA.class "text"
+                                , HA.placeholder "NULL"
+                                , HA.value
+                                    (Dict.get column model.tableValues
+                                        |> Maybe.withDefault ""
+                                    )
+                                , HE.onFocus (TableColumnInputFocused column)
+                                ]
+                                []
+                            ]
+                    )
+                    (currentTableColumns model)
+                )
+            )
+        , Html.Extra.viewIf
+            (model.currentTable /= Nothing)
+            (Html.div
+                [ HA.class "row"
+                , HA.class "gap-small"
+                , HA.class "align-center"
+                , HA.class "wrap"
+                ]
+                [ Html.button
+                    [ HE.onClick PasteRowFromClipboardPressed
+                    ]
+                    [ Html.text "Paste Row" ]
+                , Html.button
+                    [ HE.onClick CopyRowToClipboardPressed
+                    ]
+                    [ Html.text "Copy Row" ]
+                , case model.currentTable of
+                    Just "Actions" ->
+                        Html.button
+                            [ HE.onClick ParseActionPressed
+                            ]
+                            [ Html.text "Parse item activation" ]
+
+                    Just "CriticalEffects" ->
+                        Html.button
+                            [ HE.onClick ParseCritEffectsPressed
+                            ]
+                            [ Html.text "Parse" ]
+
+                    _ ->
+                        Html.text ""
+                ]
+            )
+        ]
+
+
+currentTableColumns : Model -> List String
+currentTableColumns model =
+    case model.currentTable of
+        Just "Actions" ->
+            actionsColumns
+
+        Just "CriticalEffects" ->
+            criticalEffectsColumns
+
+        _ ->
+            []
+
+
+actionsColumns : List String
+actionsColumns =
+    [ "ActionsID"
+    , "Name"
+    , "NameDisplay"
+    , "TitleName"
+    , "SourcesID"
+    , "Page"
+    , "TableName"
+    , "ObjectID"
+    , "ActionTypesID"
+    , "Description"
+    , "ProficienciesID"
+    , "BasicAction"
+    , "SpecialBasicAction"
+    , "Prerequisites"
+    , "Trigger"
+    , "Requirements"
+    , "Frequency"
+    , "Cost"
+    , "CriticalEffectsID"
+    , "ActivateAction"
+    , "ActivateSource"
+    , "LegacyID"
+    ]
+
+
+criticalEffectsColumns : List String
+criticalEffectsColumns =
+    [ "CriticalEffectsID"
+    , "CritSuccess"
+    , "Success"
+    , "Failure"
+    , "CritFailure"
+    ]
 
 
 css : String
