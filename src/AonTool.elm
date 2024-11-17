@@ -424,7 +424,9 @@ update msg model =
                 Ok searchResult ->
                     ( { model
                         | documents =
-                            List.append model.documents searchResult.documents
+                            searchResult.documents
+                                |> List.concatMap explodePersistentDamage
+                                |> List.append model.documents
                       }
                     , Cmd.none
                     )
@@ -574,6 +576,45 @@ undoFromModel model =
     , selection = model.selection
     }
 
+
+explodePersistentDamage : Document -> List Document
+explodePersistentDamage document =
+    if document.name == "Persistent Damage" && document.category == "condition" then
+        List.map
+            (\damageType ->
+                { document
+                    | id = document.id ++ "-" ++ damageType
+                    , name = "Persistent " ++ damageType ++ " Damage"
+                }
+            )
+            [ "Acid"
+            , "Area"
+            , "Bleed"
+            , "Bludgeoning"
+            , "Chaotic"
+            , "Cold"
+            , "Electricity"
+            , "Evil"
+            , "Fire"
+            , "Force"
+            , "Good"
+            , "Holy"
+            , "Lawful"
+            , "Mental"
+            , "Negative"
+            , "Piercing"
+            , "Poison"
+            , "Positive"
+            , "Slashing"
+            , "Sonic"
+            , "Spirit"
+            , "Splashing"
+            , "Unholy"
+            ]
+            |> (::) document
+
+    else
+        [ document ]
 
 
 flagsDecoder : Decode.Decoder Flags
