@@ -1261,50 +1261,7 @@ view model =
             []
             [ Html.text css
             ]
-        , Html.div
-            [ HA.class "row"
-            , HA.class "gap-medium"
-            , HA.class "wrap"
-            ]
-            [ Html.div
-                [ HA.class "row"
-                , HA.class "gap-small"
-                , HA.class "align-center"
-                ]
-                [ Html.text (String.fromInt (List.length model.documents) ++ " documents loaded")
-                , Html.button
-                    [ HE.onClick RefreshDataPressed ]
-                    [ Html.text "Refresh" ]
-                ]
-            , Html.div
-                [ HA.class "row"
-                , HA.class "gap-tiny"
-                , HA.class "align-center"
-                ]
-                [ Html.text "Elasticsearch URL"
-                , Html.input
-                    [ HA.style "width" "300px"
-                    , HA.placeholder defaultElasticsearchUrl
-                    , HA.value model.elasticUrl
-                    , HE.onInput ElasticUrlChanged
-                    ]
-                    []
-                ]
-            , Html.div
-                [ HA.class "row"
-                , HA.class "gap-tiny"
-                , HA.class "align-center"
-                ]
-                [ Html.text "AoN URL"
-                , Html.input
-                    [ HA.style "width" "300px"
-                    , HA.placeholder defaultAonUrl
-                    , HA.value model.aonUrl
-                    , HE.onInput AonUrlChanged
-                    ]
-                    []
-                ]
-            ]
+        , viewOptions model
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
@@ -1322,83 +1279,8 @@ view model =
                 []
             , viewPreview model
             ]
-        , Html.div
-            [ HA.class "row"
-            , HA.class "gap-small"
-            , HA.class "align-center"
-            , HA.class "wrap"
-            ]
-            [ Html.text "Clipboard"
-            , Html.button
-                [ HE.onClick PasteFromClipboardPressed
-                ]
-                [ Html.text "Paste" ]
-            , Html.button
-                [ HE.onClick CopyToClipboardPressed
-                ]
-                [ Html.text "Copy" ]
-            , Html.button
-                [ HE.onClick CopyFirstSentenceToClipboardPressed
-                ]
-                [ Html.text "Copy first sentence" ]
-            ]
-        , Html.div
-            [ HA.class "row"
-            , HA.class "gap-small"
-            , HA.class "align-center"
-            , HA.class "wrap"
-            ]
-            [ Html.text "Utility"
-            , Html.button
-                [ HE.onClick FixNewlinesPressed
-                , HA.title "Ctrl + Space"
-                ]
-                [ Html.text "Fix newlines" ]
-            , Html.button
-                [ HE.onClick AddBrPressed
-                , HA.title "Ctrl + Enter"
-                ]
-                [ Html.text "Add <br />" ]
-            , Html.button
-                [ HE.onClick (WrapWithPressed "<b>" "</b>")
-                , HA.title "Ctrl + B"
-                ]
-                [ Html.text "Wrap with <b>" ]
-            , Html.button
-                [ HE.onClick (WrapWithPressed "<i>" "</i>")
-                , HA.title "Ctrl + I"
-                ]
-                [ Html.text "Wrap with <i>" ]
-            , Html.button
-                [ HE.onClick (WrapWithPressed "<u>" "</u>")
-                , HA.title "Ctrl + U"
-                ]
-                [ Html.text "Wrap with <u>" ]
-            , Html.button
-                [ HE.onClick (WrapWithPressed "<h2 class=\"title\">" "</h2>")
-                ]
-                [ Html.text "Wrap with <h2 class=\"title\">" ]
-            , Html.button
-                [ HE.onClick ConvertToListPressed
-                ]
-                [ Html.text "Convert to <ul>" ]
-            , Html.button
-                [ HE.onClick ConvertActionsPressed
-                ]
-                [ Html.text "Convert actions" ]
-            , Html.button
-                [ HE.onClick FormatActionPressed
-                ]
-                [ Html.text "Format Action" ]
-            , Html.button
-                [ HE.onClick FormatCritEffectsPressed
-                ]
-                [ Html.text "Format CritEffects" ]
-            , Html.button
-                [ HE.onClick FormatTraitsPressed
-                ]
-                [ Html.text "Format Traits" ]
-            ]
+        , viewClipboard
+        , viewUtilities
         , Html.div
             [ HA.class "row"
             , HA.class "gap-small"
@@ -1406,6 +1288,139 @@ view model =
             [ viewCandidates model
             , viewManual model
             ]
+        ]
+
+
+viewOptions : Model -> Html Msg
+viewOptions model =
+    Html.div
+        [ HA.class "row"
+        , HA.class "gap-medium"
+        , HA.class "wrap"
+        ]
+        [ Html.div
+            [ HA.class "row"
+            , HA.class "gap-small"
+            , HA.class "align-center"
+            ]
+            [ Html.text (String.fromInt (List.length model.documents) ++ " documents loaded")
+            , Html.button
+                [ HE.onClick RefreshDataPressed ]
+                [ Html.text "Refresh" ]
+            ]
+        , Html.div
+            [ HA.class "row"
+            , HA.class "gap-tiny"
+            , HA.class "align-center"
+            ]
+            [ Html.text "Elasticsearch URL"
+            , Html.input
+                [ HA.style "width" "300px"
+                , HA.placeholder defaultElasticsearchUrl
+                , HA.value model.elasticUrl
+                , HE.onInput ElasticUrlChanged
+                ]
+                []
+            ]
+        , Html.div
+            [ HA.class "row"
+            , HA.class "gap-tiny"
+            , HA.class "align-center"
+            ]
+            [ Html.text "AoN URL"
+            , Html.input
+                [ HA.style "width" "300px"
+                , HA.placeholder defaultAonUrl
+                , HA.value model.aonUrl
+                , HE.onInput AonUrlChanged
+                ]
+                []
+            ]
+        ]
+
+
+viewClipboard : Html Msg
+viewClipboard =
+    Html.div
+        [ HA.class "row"
+        , HA.class "gap-small"
+        , HA.class "align-center"
+        , HA.class "wrap"
+        ]
+        [ Html.text "Clipboard"
+        , Html.button
+            [ HE.onClick PasteFromClipboardPressed
+            ]
+            [ Html.text "Paste" ]
+        , Html.button
+            [ HE.onClick CopyToClipboardPressed
+            ]
+            [ Html.text "Copy" ]
+        , Html.button
+            [ HE.onClick CopyFirstSentenceToClipboardPressed
+            ]
+            [ Html.text "Copy first sentence" ]
+        ]
+
+
+viewUtilities : Html Msg
+viewUtilities =
+    Html.div
+        [ HA.class "row"
+        , HA.class "gap-small"
+        , HA.class "align-center"
+        , HA.class "wrap"
+        ]
+        [ Html.text "Utility"
+        , Html.button
+            [ HE.onClick FixNewlinesPressed
+            , HA.title "Ctrl + Space"
+            ]
+            [ Html.text "Fix newlines" ]
+        , Html.button
+            [ HE.onClick AddBrPressed
+            , HA.title "Ctrl + Enter"
+            ]
+            [ Html.text "Add <br />" ]
+        , Html.button
+            [ HE.onClick (WrapWithPressed "<b>" "</b>")
+            , HA.title "Ctrl + B"
+            ]
+            [ Html.text "Wrap with <b>" ]
+        , Html.button
+            [ HE.onClick (WrapWithPressed "<i>" "</i>")
+            , HA.title "Ctrl + I"
+            ]
+            [ Html.text "Wrap with <i>" ]
+        , Html.button
+            [ HE.onClick (WrapWithPressed "<u>" "</u>")
+            , HA.title "Ctrl + U"
+            ]
+            [ Html.text "Wrap with <u>" ]
+        , Html.button
+            [ HE.onClick (WrapWithPressed "<h2 class=\"title\">" "</h2>")
+            ]
+            [ Html.text "Wrap with <h2 class=\"title\">" ]
+        , Html.button
+            [ HE.onClick ConvertToListPressed
+            ]
+            [ Html.text "Convert to <ul>" ]
+        , Html.button
+            [ HE.onClick ConvertActionsPressed
+            ]
+            [ Html.text "Convert actions" ]
+        , Html.button
+            [ HE.onClick FormatActionPressed
+            ]
+            [ Html.text "Format Action" ]
+        , Html.button
+            [ HE.onClick FormatCritEffectsPressed
+            ]
+            [ Html.text "Format CritEffects" ]
+        , Html.button
+            [ HE.onClick FormatTraitsPressed
+            ]
+            [ Html.text "Format Traits" ]
         ]
 
 
