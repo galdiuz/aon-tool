@@ -61,6 +61,7 @@ type Msg
     | FixNewlinesPressed
     | FormatActionPressed
     | FormatCritEffectsPressed
+    | FormatTraitsPressed
     | GotClipboardContents String
     | GotDataResult (Result Http.Error SearchResult)
     | KeyPressed KeyEvent
@@ -404,6 +405,58 @@ update msg model =
                             |> String.Extra.clean
                         )
                 , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        FormatTraitsPressed ->
+            ( { model
+                | text =
+                    model.documents
+                        |> List.filter (.category >> (==) "trait")
+                        |> List.sortBy (.name >> String.length)
+                        |> List.reverse
+                        |> List.foldl
+                            (\document result ->
+                                if String.contains (String.toLower document.name) result.text then
+                                    let
+                                        firstMatch : Maybe Regex.Match
+                                        firstMatch =
+                                            Regex.find
+                                                (regexFromString ("(?<![a-zA-Z%])" ++ escapeRegex document.name ++ "(?![a-zA-Z%])"))
+                                                result.text
+                                                |> List.head
+
+                                        traitId : String
+                                        traitId =
+                                            String.replace "trait-" "" document.id
+                                    in
+                                    case firstMatch of
+                                        Just match ->
+                                            { result
+                                                | text =
+                                                    String.Extra.replaceSlice
+                                                        ""
+                                                        match.index
+                                                        (match.index + String.length document.name)
+                                                        result.text
+                                                , traits = { id = traitId, name = document.name } :: result.traits
+                                            }
+
+                                        Nothing ->
+                                            result
+
+                                else
+                                    result
+                            )
+                            { text = String.toLower model.text
+                            , traits = []
+                            }
+                        |> .traits
+                        |> List.sortBy .name
+                        |> List.map (\trait -> trait.id ++ "\t" ++ trait.name)
+                        |> String.join "\n"
               }
             , Cmd.none
             )
@@ -1333,13 +1386,17 @@ view model =
                 ]
                 [ Html.text "Convert actions" ]
             , Html.button
+                [ HE.onClick FormatActionPressed
+                ]
+                [ Html.text "Format Action" ]
+            , Html.button
                 [ HE.onClick FormatCritEffectsPressed
                 ]
                 [ Html.text "Format CritEffects" ]
             , Html.button
-                [ HE.onClick FormatActionPressed
+                [ HE.onClick FormatTraitsPressed
                 ]
-                [ Html.text "Format Action" ]
+                [ Html.text "Format Traits" ]
             ]
         , Html.div
             [ HA.class "row"
