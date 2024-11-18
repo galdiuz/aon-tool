@@ -36,7 +36,7 @@ type alias Model =
     { aonUrl : String
     , candidates : List Candidate
     , currentCandidate : Maybe Candidate
-    , currentTable : Maybe String
+    , currentTable : Maybe Table
     , currentTableColumn : Maybe String
     , debounce : Int
     , documents : List Document
@@ -71,13 +71,18 @@ type Msg
     | KeyPressed KeyEvent
     | ManualSearchChanged String
     | ParseActionPressed
+    | ParseAnimalCompanionsPressed
     | ParseCritEffectsPressed
+    | ParseFeatHeadersPressed
+    | ParseRitualHeadersPressed
+    | ParseSpellHeadersPressed
+    | ParseTreasureHeadersPressed
     | PasteFromClipboardPressed
     | PasteRowFromClipboardPressed
     | RefreshDataPressed
     | SelectionChanged Decode.Value
     | TableColumnInputFocused String
-    | TableSelected String
+    | TableSelected Table
     | TextChanged String
     | TextFocused Bool
     | UndoPressed
@@ -142,6 +147,16 @@ type alias KeyEvent =
     { ctrl : Bool
     , key : String
     }
+
+
+type Table
+    = Actions
+    | AnimalCompanions
+    | CriticalEffects
+    | Feats
+    | Rituals
+    | Spells
+    | Treasure
 
 
 defaultAonUrl : String
@@ -239,9 +254,23 @@ update msg model =
             )
 
         ApplyCandidatePressed candidate ->
-            ( { model
-                | text =
+            let
+                text : String
+                text =
                     applyCandidate candidate model.text
+            in
+            ( { model
+                | tableValues =
+                    case model.currentTableColumn of
+                        Just column ->
+                            Dict.insert
+                                column
+                                text
+                                model.tableValues
+
+                        Nothing ->
+                            model.tableValues
+                , text = text
                 , undo = Just <| undoFromModel model
               }
             , Cmd.none
@@ -291,6 +320,7 @@ update msg model =
                 (\column ->
                     Dict.get column model.tableValues
                         |> Maybe.withDefault "NULL"
+                        |> \s -> if s == "" then "NULL" else s
                 )
                 (currentTableColumns model)
                 |> String.join "\t"
@@ -514,7 +544,7 @@ update msg model =
             ( { model
                 | tableValues =
                     case Regex.find
-                        (regexFromString "(?:Activate—)?(.*) (\\[.*\\]) (\\(.*\\))? ?(?:Trigger (.*?(?=;)); )?(?:Frequency (.*?(?=;)); )?(?:Requirements (.*?(?=;)); )?(?:Effect (.*))")
+                        (regexFromString "(?:Activate—)?(.+) (\\[.+\\]) (\\(.+\\))? ?(?:Trigger (.+?);? ?)?(?:Frequency (.+?);? ?)?(?:Requirements (.+?);? ?)?(?:Effects? (.+))")
                         (model.text
                             |> String.replace "\r" ""
                             |> String.replace "\n" " "
@@ -557,11 +587,28 @@ update msg model =
             )
                 |> updateCandidates
 
-        ParseCritEffectsPressed ->
+        ParseAnimalCompanionsPressed ->
             ( { model
                 | tableValues =
                     case Regex.find
-                        (regexFromString "^.*?(Critical Success (.*?(?=Success)|$))?(Success (.*?((?=(Critical )?Failure)|$)))?(Failure (.*?((?=Critical Failure)|$)))?(Critical Failure (.*))?$")
+                        (headersRegex
+                            [ "Size"
+                            , "Melee"
+                            , "Str"
+                            , "Dex"
+                            , "Con"
+                            , "Int"
+                            , "Wis"
+                            , "Cha"
+                            , "Hit Points"
+                            , "Skill"
+                            , "Senses"
+                            , "Speed"
+                            , "Special"
+                            , "Support Benefit"
+                            , "Advanced Maneuver"
+                            ]
+                        )
                         (model.text
                             |> String.replace "\r" ""
                             |> String.replace "\n" " "
@@ -569,10 +616,230 @@ update msg model =
                         )
                     of
                         match :: _ ->
-                            [ ( "CritSuccess", getSubmatch 1 "" match )
-                            , ( "Success", getSubmatch 3 "" match )
-                            , ( "Failure", getSubmatch 7 "" match )
-                            , ( "CritFailure" , getSubmatch 10 "" match )
+                            [ ( "Size", getSubmatch 0 "" match )
+                            , ( "STR", getSubmatch 2 "" match |> String.replace "+" "" |> String.replace "," "" )
+                            , ( "DEX", getSubmatch 3 "" match |> String.replace "+" "" |> String.replace "," "" )
+                            , ( "CON", getSubmatch 4 "" match |> String.replace "+" "" |> String.replace "," "" )
+                            , ( "INT", getSubmatch 5 "" match |> String.replace "+" "" |> String.replace "," "" )
+                            , ( "WIS", getSubmatch 6 "" match |> String.replace "+" "" |> String.replace "," "" )
+                            , ( "CHA", getSubmatch 7 "" match |> String.replace "+" "" )
+                            , ( "HitPoints", getSubmatch 8 "" match )
+                            , ( "SkillsID", getSubmatch 9 "" match )
+                            , ( "Senses", getSubmatch 10 "" match )
+                            , ( "Speed", getSubmatch 11 "" match )
+                            , ( "Special", getSubmatch 12 "" match )
+                            , ( "SupportBenefit", getSubmatch 13 "" match )
+                            , ( "AdvancedManeuver", getSubmatch 14 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        ParseCritEffectsPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (headersRegex
+                            [ "Critical Success"
+                            , "Success"
+                            , "Failure"
+                            , "Critical Failure"
+                            ]
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "CritSuccess", getSubmatch 0 "" match )
+                            , ( "Success", getSubmatch 1 "" match )
+                            , ( "Failure", getSubmatch 2 "" match )
+                            , ( "CritFailure" , getSubmatch 3 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        ParseFeatHeadersPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (headersRegex
+                            [ "Access"
+                            , "Cost"
+                            , "Prerequisites"
+                            , "Frequency"
+                            , "Trigger"
+                            , "Requirements"
+                            , "Duration"
+                            ]
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "Access", getSubmatch 0 "" match )
+                            , ( "Cost", getSubmatch 1 "" match )
+                            , ( "Prerequisites", getSubmatch 2 "" match )
+                            , ( "Frequency", getSubmatch 3 "" match )
+                            , ( "Trigger", getSubmatch 4 "" match )
+                            , ( "Requirements", getSubmatch 5 "" match )
+                            , ( "Duration", getSubmatch 6 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        ParseRitualHeadersPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (headersRegex
+                            [ "Access"
+                            , "Cast", "Cost", "Secondary Casters"
+                            , "Primary Check", "Secondary Checks"
+                            , "Requirements"
+                            , "Range", "Area", "Targets"
+                            , "Defense", "Duration"
+                            ]
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "Access", getSubmatch 0 "" match )
+                            , ( "Cast", getSubmatch 1 "" match )
+                            , ( "Cost", getSubmatch 2 "" match )
+                            , ( "SecondaryCasters", getSubmatch 3 "" match )
+                            , ( "PrimaryChecks", getSubmatch 4 "" match )
+                            , ( "SecondaryChecks", getSubmatch 5 "" match )
+                            , ( "Requirements", getSubmatch 6 "" match )
+                            , ( "Range", getSubmatch 7 "" match )
+                            , ( "Area", getSubmatch 8 "" match )
+                            , ( "Targets", getSubmatch 9 "" match )
+                            , ( "Defense", getSubmatch 10 "" match )
+                            , ( "Duration", getSubmatch 11 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+
+        ParseSpellHeadersPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (headersRegex
+                            [ "Traditions"
+                            , "Cast", "Cost"
+                            , "Trigger", "Requirements"
+                            , "Range", "Area", "Targets"
+                            , "Defense", "Duration"
+                            ]
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "CastString", getSubmatch 1 "" match )
+                            , ( "Cost", getSubmatch 2 "" match )
+                            , ( "Trigger", getSubmatch 3 "" match )
+                            , ( "Requirements", getSubmatch 4 "" match )
+                            , ( "Range", getSubmatch 5 "" match )
+                            , ( "Area", getSubmatch 6 "" match )
+                            , ( "Targets", getSubmatch 7 "" match )
+                            , ( "Defense", getSubmatch 8 "" match )
+                            , ( "Duration", getSubmatch 9 "" match )
+                            ]
+                                |> List.map (Tuple.mapSecond String.trim)
+                                |> Dict.fromList
+
+                        _ ->
+                            Dict.empty
+                , text = ""
+                , undo = Just <| undoFromModel model
+              }
+            , Cmd.none
+            )
+                |> updateCandidates
+
+        ParseTreasureHeadersPressed ->
+            ( { model
+                | tableValues =
+                    case Regex.find
+                        (headersRegex
+                            [ "Ammunition"
+                            , "Price"
+                            , "Ammunition"
+                            , "Usage", "Bulk"
+                            , "Access"
+                            ]
+                        )
+                        (model.text
+                            |> String.replace "\r" ""
+                            |> String.replace "\n" " "
+                            |> String.Extra.clean
+                        )
+                    of
+                        match :: _ ->
+                            [ ( "Price", getSubmatch 1 "" match |> parsePrice )
+                            , ( "Ammunition"
+                              , Maybe.Extra.orList
+                                    [ getSubmatch 0 "" match |> String.Extra.nonEmpty
+                                    , getSubmatch 2 "" match |> String.Extra.nonEmpty
+                                    ]
+                                    |> Maybe.withDefault ""
+                              )
+                            , ( "Usage", getSubmatch 3 "" match )
+                            , ( "Bulk"
+                              , case getSubmatch 4 "" match of
+                                  "L" -> "0"
+                                  "—" -> "-1"
+                                  "" -> "-1"
+                                  s -> s
+                              )
+                            , ( "Access", getSubmatch 5 "" match )
                             ]
                                 |> List.map (Tuple.mapSecond String.trim)
                                 |> Dict.fromList
@@ -640,6 +907,7 @@ update msg model =
                     else
                         Just table
                 , currentTableColumn = Nothing
+                , tableValues = Dict.empty
               }
             , Cmd.none
             )
@@ -761,6 +1029,18 @@ explodePersistentDamage document =
 
     else
         [ document ]
+
+
+headersRegex : List String -> Regex.Regex
+headersRegex headers =
+    List.map
+        (\header ->
+            "(?:" ++ header ++ " (.*?))?;? ?"
+        )
+        headers
+        |> String.join ""
+        |> \s -> "^.*?" ++ s ++ "$"
+        |> regexFromString
 
 
 flagsDecoder : Decode.Decoder Flags
@@ -2006,6 +2286,29 @@ actionIdFromString value =
             "NULL"
 
 
+parsePrice : String -> String
+parsePrice str =
+    let
+        value : Int
+        value =
+            str
+                |> String.filter Char.isDigit
+                |> String.toInt
+                |> Maybe.withDefault 0
+    in
+    if String.contains " gp" str then
+        String.fromInt <| value * 10
+
+    else if String.contains " sp" str then
+        String.fromInt value
+
+    else if String.contains " cp" str then
+        String.fromFloat <| toFloat value * 0.1
+
+    else
+        str
+
+
 viewCandidates : Model -> Html Msg
 viewCandidates model =
     Html.div
@@ -2223,16 +2526,42 @@ viewTables model =
             , HA.class "wrap"
             ]
             (List.append
-                [ Html.text "Tables" ]
+                [ Html.text "Table helpers" ]
                 (List.map
                     (\table ->
                         Html.button
                             [ HE.onClick (TableSelected table)
                             ]
-                            [ Html.text table ]
+                            [ case table of
+                                Actions ->
+                                    Html.text "Actions"
+
+                                AnimalCompanions ->
+                                    Html.text "AnimalCompanions"
+
+                                CriticalEffects ->
+                                    Html.text "CriticalEffects"
+
+                                Feats ->
+                                    Html.text "Feats"
+
+                                Rituals ->
+                                    Html.text "Rituals"
+
+                                Spells ->
+                                    Html.text "Spells"
+
+                                Treasure ->
+                                    Html.text "Treasure"
+                            ]
                     )
-                    [ "Actions"
-                    , "CriticalEffects"
+                    [ Actions
+                    , AnimalCompanions
+                    , CriticalEffects
+                    , Feats
+                    , Rituals
+                    , Spells
+                    , Treasure
                     ]
                 )
             )
@@ -2278,27 +2607,53 @@ viewTables model =
                 , HA.class "wrap"
                 ]
                 [ Html.button
-                    [ HE.onClick PasteRowFromClipboardPressed
-                    ]
-                    [ Html.text "Paste Row" ]
-                , Html.button
                     [ HE.onClick CopyRowToClipboardPressed
                     ]
-                    [ Html.text "Copy Row" ]
+                    [ Html.text "Copy row" ]
                 , case model.currentTable of
-                    Just "Actions" ->
+                    Just Actions ->
                         Html.button
                             [ HE.onClick ParseActionPressed
                             ]
-                            [ Html.text "Parse item activation" ]
+                            [ Html.text "Parse inline action" ]
 
-                    Just "CriticalEffects" ->
+                    Just AnimalCompanions ->
+                        Html.button
+                            [ HE.onClick ParseAnimalCompanionsPressed
+                            ]
+                            [ Html.text "Parse" ]
+
+                    Just CriticalEffects ->
                         Html.button
                             [ HE.onClick ParseCritEffectsPressed
                             ]
                             [ Html.text "Parse" ]
 
-                    _ ->
+                    Just Feats ->
+                        Html.button
+                            [ HE.onClick ParseFeatHeadersPressed
+                            ]
+                            [ Html.text "Parse headers" ]
+
+                    Just Rituals ->
+                        Html.button
+                            [ HE.onClick ParseRitualHeadersPressed
+                            ]
+                            [ Html.text "Parse headers" ]
+
+                    Just Spells ->
+                        Html.button
+                            [ HE.onClick ParseSpellHeadersPressed
+                            ]
+                            [ Html.text "Parse headers" ]
+
+                    Just Treasure ->
+                        Html.button
+                            [ HE.onClick ParseTreasureHeadersPressed
+                            ]
+                            [ Html.text "Parse headers" ]
+
+                    Nothing ->
                         Html.text ""
                 ]
             )
@@ -2308,11 +2663,26 @@ viewTables model =
 currentTableColumns : Model -> List String
 currentTableColumns model =
     case model.currentTable of
-        Just "Actions" ->
+        Just Actions ->
             actionsColumns
 
-        Just "CriticalEffects" ->
+        Just AnimalCompanions ->
+            animalCompanionsColumns
+
+        Just CriticalEffects ->
             criticalEffectsColumns
+
+        Just Feats ->
+            featsColumns
+
+        Just Rituals ->
+            ritualsColumns
+
+        Just Spells ->
+            spellsColumns
+
+        Just Treasure ->
+            treasureColumns
 
         _ ->
             []
@@ -2345,13 +2715,107 @@ actionsColumns =
     ]
 
 
+animalCompanionsColumns : List String
+animalCompanionsColumns =
+    [ "Size"
+    , "STR"
+    , "DEX"
+    , "CON"
+    , "INT"
+    , "WIS"
+    , "CHA"
+    , "HitPoints"
+    , "SkillsID"
+    , "SkillOther"
+    , "Senses"
+    , "Speed"
+    , "Special"
+    , "SupportBenefit"
+    , "AdvancedManeuver"
+    ]
+
+
 criticalEffectsColumns : List String
 criticalEffectsColumns =
-    [ "CriticalEffectsID"
-    , "CritSuccess"
+    [ "CritSuccess"
     , "Success"
     , "Failure"
     , "CritFailure"
+    ]
+
+
+featsColumns : List String
+featsColumns =
+    [ "Prerequisites"
+    , "Access"
+    , "Requirements"
+    , "Special"
+    , "SpecialBreak"
+    , "Frequency"
+    , "Trigger"
+    , "Duration"
+    , "Cost"
+    ]
+
+
+ritualsColumns : List String
+ritualsColumns =
+    [ "Access"
+    , "Cast"
+    , "Cost"
+    , "SecondaryCasters"
+    , "PrimaryChecks"
+    , "SecondaryChecks"
+    , "Requirements"
+    , "Range"
+    , "Area"
+    , "Targets"
+    , "Duration"
+    ]
+
+
+spellsColumns : List String
+spellsColumns =
+    [ "CastString"
+    , "Cost"
+    , "CostString"
+    , "Requirements"
+    , "Trigger"
+    , "Range"
+    , "Area"
+    , "Targets"
+    , "SavingThrow"
+    , "Duration"
+    -- , "Description"
+    -- , "Summary"
+    -- , "PostHeighten"
+    -- , "CriticalEffectsID"
+    -- , "isDuplicate"
+    , "Defense"
+    ]
+
+
+treasureColumns : List String
+treasureColumns =
+    [ "Price"
+    , "PriceAdded"
+    , "PriceExtra"
+    , "Ammunition"
+    , "Hands"
+    , "Onset"
+    , "Usage"
+    , "Bulk"
+    , "BulkOther"
+    , "Duration"
+    , "MiscHeader"
+    , "ActivateActionID"
+    , "ActivateActionTypesID"
+    , "ActivateOther"
+    , "Description"
+    , "Destruction"
+    , "CritEffects"
+    , "CraftRequirements"
+    , "Access"
     ]
 
 
