@@ -2280,7 +2280,7 @@ actionIdFromString value =
             "5"
 
         "[free-action]" ->
-            "5"
+            "6"
 
         _ ->
             "NULL"
