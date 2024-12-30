@@ -33,7 +33,8 @@ port selection_set : Encode.Value -> Cmd msg
 
 
 type alias Model =
-    { aonUrl : String
+    { allowDuplicateLinks : Bool
+    , aonUrl : String
     , candidates : List Candidate
     , currentCandidate : Maybe Candidate
     , currentTable : Maybe Table
@@ -54,6 +55,7 @@ type alias Model =
 
 type Msg
     = AddBrPressed
+    | AllowDuplicateLinksChanged Bool
     | AonUrlChanged String
     | ApplyCandidatePressed Candidate
     | CandidateSelected Candidate
@@ -187,7 +189,8 @@ init flagsValue =
             Decode.decodeValue flagsDecoder flagsValue
                 |> Result.withDefault defaultFlags
     in
-    ( { aonUrl = defaultAonUrl
+    ( { allowDuplicateLinks = True
+      , aonUrl = defaultAonUrl
       , candidates = []
       , currentCandidate = Nothing
       , currentTable = Nothing
@@ -245,6 +248,11 @@ update msg model =
                 setSelection model.selection.start (model.selection.end + 6)
             )
                 |> updateCandidates
+
+        AllowDuplicateLinksChanged value ->
+            ( { model | allowDuplicateLinks = value }
+            , Cmd.none
+            )
 
         AonUrlChanged value ->
             ( { model | aonUrl = value }
@@ -1418,6 +1426,11 @@ isCandidateInATag candidate rawText =
     openIndicesBefore /= closeIndicesBefore
 
 
+isCandidateLinkApplied : Candidate -> String -> Bool
+isCandidateLinkApplied candidate text =
+    String.contains (getDocumentLink candidate.document) text
+
+
 addLinkTag : Document -> String -> String
 addLinkTag document string =
     if document.category == "spell" then
@@ -1711,6 +1724,19 @@ viewOptions model =
                 , HE.onInput AonUrlChanged
                 ]
                 []
+            ]
+        , Html.label
+            [ HA.class "row"
+            , HA.class "gap-tiny"
+            , HA.class "align-center"
+            ]
+            [ Html.input
+                [ HA.type_ "checkbox"
+                , HA.checked model.allowDuplicateLinks
+                , HE.onCheck AllowDuplicateLinksChanged
+                ]
+                []
+            , Html.text "Allow duplicate links"
             ]
         ]
 
@@ -2407,10 +2433,13 @@ viewCandidate model candidate =
             ]
         , Html.button
             [ HA.style "align-self" "flex-start"
-            , HA.disabled (isCandidateInATag candidate model.text || String.contains (getDocumentLink candidate.document) model.text)
+            , HA.disabled
+                (isCandidateInATag candidate model.text
+                    || (isCandidateLinkApplied candidate model.text && not model.allowDuplicateLinks)
+                )
             , HE.onClick (ApplyCandidatePressed candidate)
             ]
-            [ if String.contains (getDocumentLink candidate.document) model.text then
+            [ if isCandidateLinkApplied candidate model.text then
                 Html.text "Applied"
 
               else if isCandidateInATag candidate model.text then
