@@ -190,7 +190,7 @@ init flagsValue =
             Decode.decodeValue flagsDecoder flagsValue
                 |> Result.withDefault defaultFlags
     in
-    ( { allowDuplicateLinks = True
+    ( { allowDuplicateLinks = False
       , aonUrl = defaultAonUrl
       , candidates = []
       , currentCandidate = Nothing
@@ -2505,10 +2505,15 @@ viewManual model =
                             ]
                         , Html.button
                             [ HA.style "align-self" "flex-start"
-                            , HA.disabled (isCandidateInATag candidate model.text || String.contains (getDocumentLink candidate.document) model.text)
+                            , HA.disabled
+                                (isCandidateInATag candidate model.text
+                                    || (isCandidateLinkApplied candidate model.text
+                                        && not model.allowDuplicateLinks
+                                    )
+                                )
                             , HE.onClick (ApplyCandidatePressed candidate)
                             ]
-                            [ if String.contains (getDocumentLink candidate.document) model.text then
+                            [ if isCandidateLinkApplied candidate model.text then
                                 Html.text "Applied"
 
                               else if isCandidateInATag candidate model.text then
