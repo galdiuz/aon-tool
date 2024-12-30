@@ -1467,6 +1467,7 @@ getDocumentLinkCode document =
         "conscious-mind" -> "CLASS.CONSCIOUS.MINDS"
         "creature" -> "MONSTERS"
         "creature-ability" -> "UMR"
+        "creature-adjustment" -> "TEMPLATES"
         "creature-family" -> "MON.FAMILY"
         "creature-theme-template" -> "" -- Missing
         "curse" -> "CURSES"
@@ -1602,6 +1603,7 @@ linkCodeToUrl code =
         "SKILLS.GENERAL" -> "/Skills.aspx?General=true&ID="
         "SOURCES" -> "/Sources.aspx?ID="
         "SPELLS" -> "/Spells.aspx?ID="
+        "TEMPLATES" -> "/MonsterTemplates.aspx?ID="
         "TRADITIONS" -> "/Spells.aspx?Tradition="
         "TRAITS" -> "/Traits.aspx?ID="
         "UMR" -> "/MonsterAbilities.aspx?ID="
