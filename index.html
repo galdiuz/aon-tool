@@ -27,6 +27,15 @@
             });
         });
 
+        app.ports.document_scrollTo.subscribe(id => {
+            window.requestAnimationFrame(() => {
+                let element = document.getElementById(id);
+                if (element) {
+                    element.scrollIntoView({ block: "center" })
+                }
+            })
+        });
+
         app.ports.localStorage_set.subscribe(data => {
             localStorage.setItem(data.key, data.value);
         });

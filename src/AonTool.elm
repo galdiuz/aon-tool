@@ -27,6 +27,7 @@ import Task
 port clipboard_get : () -> Cmd msg
 port clipboard_receive : (String -> msg) -> Sub msg
 port clipboard_set : String -> Cmd msg
+port document_scrollTo : String -> Cmd msg
 port localStorage_set : Encode.Value -> Cmd msg
 port selection_changed : (Decode.Value -> msg) -> Sub msg
 port selection_set : Encode.Value -> Cmd msg
@@ -287,7 +288,7 @@ update msg model =
 
         CandidateSelected candidate ->
             ( { model | currentCandidate = Just candidate }
-            , Cmd.none
+            , document_scrollTo "current-candidate"
             )
 
         ConvertActionsPressed ->
@@ -2157,7 +2158,9 @@ markdownHtmlRenderer model =
         , Markdown.Html.tag "highlight-candidate"
             (\children ->
                 [ Html.span
-                    [ HA.class "highlight-candidate" ]
+                    [ HA.class "highlight-candidate"
+                    , HA.id "current-candidate"
+                    ]
                     (List.concat children)
                 ]
             )
