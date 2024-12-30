@@ -1,0 +1,71 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AoN Tool</title>
+    <script src="app-388227ac553e6ac2e2099c7ad85914161b7990f1.js"></script>
+    <link rel="preload" as="font" href="Pathfinder-Icons.ttf" type="font/ttf" crossorigin="anonymous">
+</head>
+<body>
+    <script>
+        let container = document.createElement('div');
+        document.body.appendChild(container);
+        let app = Elm.AonTool.init({
+            node: container,
+            flags: {
+                localStorage: { ...localStorage },
+            }
+        });
+
+        app.ports.clipboard_set.subscribe(value => {
+            navigator.clipboard.writeText(value);
+        });
+
+        app.ports.clipboard_get.subscribe(_ => {
+            navigator.clipboard.readText().then(value => {
+                app.ports.clipboard_receive.send(value);
+            });
+        });
+
+        app.ports.document_scrollTo.subscribe(id => {
+            window.requestAnimationFrame(() => {
+                let element = document.getElementById(id);
+                if (element) {
+                    element.scrollIntoView({ block: "center" })
+                }
+            })
+        });
+
+        app.ports.localStorage_set.subscribe(data => {
+            localStorage.setItem(data.key, data.value);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key == 'u') {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener("selectionchange", () => {
+            if (document.activeElement.className == "text") {
+                let start = document.activeElement.selectionStart;
+                let end = document.activeElement.selectionEnd;
+
+                app.ports.selection_changed.send({
+                    text: document.activeElement.value.slice(start, end),
+                    start: start,
+                    end: end,
+                });
+            }
+        });
+
+        app.ports.selection_set.subscribe(data => {
+            if (document.activeElement.id == "text") {
+                window.requestAnimationFrame(() => {
+                    document.activeElement.setSelectionRange(data.start, data.end)
+                })
+            }
+        });
+    </script>
+</body>
+</html>
